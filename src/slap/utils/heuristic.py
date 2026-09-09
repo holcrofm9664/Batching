@@ -1,5 +1,5 @@
 from collections import defaultdict
-from slap.utils.tesco_batching_heuristic_helpers import quantity_that_fits, add_product, open_new_cage
+from src.slap.utils.heuristic_helpers import quantity_that_fits, add_product, open_new_cage
 
 def create_batches(
     shop_prod_dem:dict[tuple[int,int],int],

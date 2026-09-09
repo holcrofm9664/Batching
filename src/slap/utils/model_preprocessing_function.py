@@ -1,6 +1,6 @@
 import pandas as pd
 from typing import Tuple
-from slap.utils.preprocessing_helpers_batching import clean_dataframes, sample_products, weights_and_volumes, create_orders, create_max_batches, create_aisle_assignments
+from slap.utils.model_preprocessing_helpers import clean_dataframes, sample_products, weights_and_volumes, create_orders, create_max_batches, create_aisle_assignments
 
 def preprocessing_function_batching(pick_data:pd.DataFrame, solution_allocation:pd.DataFrame, num_products:int, num_orders:int, min_order_size:int, max_order_size:int, num_aisles:int, num_bays:int, num_zones:int=3, slot_capacity:int=2, between_aisle_dist:int=1, between_bay_dist:int=1, cages_per_batch:int=5, cage_weight_capacity:int=400, cage_volume_capacity:int=45, fill_percent:float=0.85, buffer:float=0.25) -> Tuple[list[list[int]], dict[int,list[int]], int, dict[int,float], dict[int,float], int, int, int, int, float, int, int, int]:
 

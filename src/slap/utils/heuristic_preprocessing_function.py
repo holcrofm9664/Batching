@@ -1,5 +1,5 @@
 import pandas as pd
-from slap.utils.preprocessing_helpers_heuristic_batching import clean_dataframes, sample_products_stores, weights_and_volumes, demands
+from src.slap.utils.heuristic_preprocessing_helpers import clean_dataframes, sample_products_stores, weights_and_volumes, demands
 
 def preprocessing_function_heuristic(pick_data:pd.DataFrame, solution_allocation:pd.DataFrame, num_aisles:int, num_bays:int, cage_weight_capacity:float, cage_vol_capacity:float, num_prods:int, num_stores:int, fill_percent:float=0.85, cages_per_trip:int=5, look_ahead:int=75):
 

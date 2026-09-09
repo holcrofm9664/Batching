@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-from typing import Tuple, Any
+from typing import Tuple
 from ast import literal_eval
 
 def clean_dataframes(pick_data:pd.DataFrame, solution_allocation:pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
