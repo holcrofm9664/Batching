@@ -9,3 +9,5 @@ venv/
 .idea/
 dist/
 build/
+notebook.ipynb
+data/
