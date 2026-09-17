@@ -1,7 +1,15 @@
 from numpy import floor
-from typing import Tuple
 
-def quantity_that_fits(product:int, demand:int, weights_dict:dict[int,float], vol_dict:dict[int,float], cage_weight_capacity:float, cage_vol_capacity:float, c_weight:float, c_vol:float) -> int:
+def quantity_that_fits(
+    product:int, 
+    demand:int, 
+    weights_dict:dict[int,float], 
+    vol_dict:dict[int,float], 
+    cage_weight_capacity:float, 
+    cage_vol_capacity:float, 
+    c_weight:float, 
+    c_vol:float
+) -> int:
     """
     Checks the quantity of a product that can fit into an already part-filled cage
 
@@ -34,7 +42,18 @@ def quantity_that_fits(product:int, demand:int, weights_dict:dict[int,float], vo
     return quantity
 
 
-def add_product(product:int, quantity:int, shop_dem:int, c_weight:float, c_vol:float, trips:dict[int,dict[int,list[int]]], trip:int, cage:int, weights_dict:dict[int,float], vol_dict:dict[int,float]) -> Tuple[float,float]:
+def add_product(
+    product:int, 
+    quantity:int, 
+    shop_dem:int, 
+    c_weight:float, 
+    c_vol:float, 
+    trips:dict[int,dict[int,list[int]]], 
+    trip:int, 
+    cage:int, 
+    weights_dict:dict[int,float], 
+    vol_dict:dict[int,float]
+) -> tuple[float,float]:
     """
     Adds a pre-determined quantity of a product to a cage
 
@@ -75,7 +94,14 @@ def add_product(product:int, quantity:int, shop_dem:int, c_weight:float, c_vol:f
     return c_weight, c_vol
 
 
-def open_new_cage(trip:int, cage:int, c_weight:float, c_vol:float, trips:dict[int,dict[int,list[int]]], cages_per_trip:int) -> Tuple[int,int,float,float]:
+def open_new_cage(
+    trip:int, 
+    cage:int, 
+    c_weight:float, 
+    c_vol:float, 
+    trips:dict[int,dict[int,list[int]]], 
+    cages_per_trip:int
+) -> tuple[int,int,float,float]:
     """
     Opens a new cage and updates relevant outputs
 
@@ -92,7 +118,6 @@ def open_new_cage(trip:int, cage:int, c_weight:float, c_vol:float, trips:dict[in
     - c_weight: the new used cage capacity (0, as the cage will be empty)
     - c_vol: the new used cage volume (0, as the cage will be empty)
     """
-    
     
     if cage < cages_per_trip:
         cage += 1

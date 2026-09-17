@@ -1,9 +1,11 @@
 import pandas as pd
 import numpy as np
-from typing import Tuple
 from ast import literal_eval
 
-def clean_dataframes(pick_data:pd.DataFrame, solution_allocation:pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
+def clean_dataframes(
+    pick_data:pd.DataFrame, 
+    solution_allocation:pd.DataFrame
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
     Cleans the dataframes by dropping NA values and renaming columns
 
@@ -16,30 +18,41 @@ def clean_dataframes(pick_data:pd.DataFrame, solution_allocation:pd.DataFrame) -
     - solution_allocation: the cleaned solution_allocation dataframe
     """
 
-    column_headers_dict = {"tpnd":"product",
-                           "Store":"store_id",
-                           "store":"store_id",
-                           "shop":"store_id",
-                           "Shop":"store_id",
-                           "assignment":"trip",
-                           "assignment_number":"trip",
-                           "batch":"trip",
-                           "Batch":"trip",
-                           "uod_number":"cage",
-                           "uod":"cage",
-                           "Cage":"cage",
-                           "datetime":"time",
-                           "qty":"qty_to_pick",
-                           "pick_qty":"qty_to_pick",
-                           "Aisle":"aisle"
-                           }
+    column_headers_dict = {
+        "tpnd":"product",
+        "Store":"store_id",
+        "store":"store_id",
+        "shop":"store_id",
+        "Shop":"store_id",
+        "assignment":"trip",
+        "assignment_number":"trip",
+        "batch":"trip",
+        "Batch":"trip",
+        "uod_number":"cage",
+        "uod":"cage",
+        "Cage":"cage",
+        "datetime":"time",
+        "qty":"qty_to_pick",
+        "pick_qty":"qty_to_pick",
+        "Aisle":"aisle"
+    }
 
     # ensure slot_pair is a tuple
-    solution_allocation["Slot_Pair"] = solution_allocation["Slot_Pair"].apply(literal_eval)
+    solution_allocation["Slot_Pair"] = (
+        solution_allocation["Slot_Pair"].
+        apply(literal_eval)
+    )
 
     # rename columns in both dataframes
-    pick_data = pick_data.rename(columns = column_headers_dict)
-    solution_allocation = solution_allocation.rename(columns = column_headers_dict)
+    pick_data = (
+        pick_data
+        .rename(columns = column_headers_dict)
+    )
+
+    solution_allocation = (
+        solution_allocation
+        .rename(columns = column_headers_dict)
+    )
 
     # drop NA values from the solution_allocation dataframe
     solution_allocation = solution_allocation.dropna()
@@ -47,7 +60,10 @@ def clean_dataframes(pick_data:pd.DataFrame, solution_allocation:pd.DataFrame) -
     return pick_data, solution_allocation
 
 
-def weights_and_volumes(solution_allocation:pd.DataFrame, prod_subset:list[int]) -> Tuple[dict[int,float], dict[int,float]]:
+def weights_and_volumes(
+    solution_allocation:pd.DataFrame, 
+    prod_subset:list[int]
+) -> tuple[dict[int,float], dict[int,float]]:
     """ 
     Constructs a weights dictionary and a volumes dictionary from the dataframe
 
@@ -61,13 +77,25 @@ def weights_and_volumes(solution_allocation:pd.DataFrame, prod_subset:list[int])
     """
 
     # construct the weights and volumes dictionaries
-    weight_dict, volume_dict = {}, {}
-    for prod in prod_subset:
-        weight_dict[prod], volume_dict[prod] = solution_allocation[solution_allocation["product"]==prod]["weight"].to_list()[0], solution_allocation[solution_allocation["product"]==prod]["volume"].to_list()[0]
+    df = (
+        solution_allocation[
+            solution_allocation["tpnd"].isin(prod_subset)
+        ]
+        .drop_duplicates(subset="tpnd")
+        .set_index("tpnd")
+    )
 
+    weight_dict = df["weight"].to_dict()
+    volume_dict = df["volume"].to_dict()
+    
     return volume_dict, weight_dict
 
-def demands(pick_data:pd.DataFrame, prod_subset:list[int], stores_subset:list[int]) -> Tuple[dict[tuple[int,int],int], dict[int,int], dict[int,int]]:
+
+def demands(
+    pick_data:pd.DataFrame, 
+    prod_subset:list[int], 
+    stores_subset:list[int]
+) -> tuple[dict[tuple[int,int],int], dict[int,int], dict[int,int]]:
     """ 
     Creates the shop_prod_dem dict
 
@@ -103,7 +131,12 @@ def demands(pick_data:pd.DataFrame, prod_subset:list[int], stores_subset:list[in
     return shop_prod_dem
 
 
-def sample_products_stores(num_prods:int, num_stores:int, solution_allocation:pd.DataFrame, pick_data:pd.DataFrame) -> list[int]:
+def sample_products_stores(
+    num_prods:int, 
+    num_stores:int, 
+    solution_allocation:pd.DataFrame, 
+    pick_data:pd.DataFrame
+) -> list[int]:
     """
     Samples products and stores to be kept in the instance
 
@@ -127,8 +160,21 @@ def sample_products_stores(num_prods:int, num_stores:int, solution_allocation:pd
     if num_stores >= len(all_stores):
         num_stores = len(all_stores)
 
-    unit_qty_dict = dict(pick_data.groupby("product")["qty_to_pick"].sum())
-    store_qty_dict = dict(pick_data.groupby("store_id")["qty_to_pick"].sum())
+    unit_qty_dict = (
+        dict(
+            pick_data
+            .groupby("product")["qty_to_pick"]
+            .sum()
+        )
+    )
+
+    store_qty_dict = (
+        dict(
+            pick_data
+            .groupby("store_id")["qty_to_pick"]
+            .sum()
+        )
+    )
 
     items, frequencies = list(unit_qty_dict.keys()), list(unit_qty_dict.values())
     stores, store_frequencies = list(store_qty_dict.keys()), list(store_qty_dict.values())
@@ -147,6 +193,8 @@ def sample_products_stores(num_prods:int, num_stores:int, solution_allocation:pd
         p = store_frequencies/np.sum(store_frequencies)
     )
 
-    all_prods, sampled_prods, sampled_stores = list(int(x) for x in all_prods), list(int(x) for x in sampled_prods), list(int(x) for x in sampled_stores)
+    all_prods = list(int(x) for x in all_prods)
+    sampled_prods = list(int(x) for x in sampled_prods)
+    sampled_stores = list(int(x) for x in sampled_stores)
 
     return all_prods, sampled_prods, sampled_stores

@@ -1,8 +1,23 @@
 import gurobipy as gp
 from gurobipy import GRB
-from typing import Tuple, Any
+from typing import Any
 
-def batching_model(orders:dict[int,list[int]], aisle_assignments:dict[int,list[int]], max_batches:int, weights_dict:dict[int,int], volumes_dict:dict[int,int], num_aisles:int, num_bays:int, cage_weight_capacity:int=400, cage_volume_capacity:int=40, fill_percent:float=0.85, cages_per_batch:int=5, between_aisle_dist:int=1, between_bay_dist:int=1, **unused:Any) -> Tuple[float, dict[Any,dict[Any,list[int]]]]:
+def batching_model(
+    orders:dict[int,list[int]], 
+    aisle_assignments:dict[int,list[int]], 
+    max_batches:int, 
+    weights_dict:dict[int,int], 
+    volumes_dict:dict[int,int], 
+    num_aisles:int, 
+    num_bays:int, 
+    cage_weight_capacity:int=400, 
+    cage_volume_capacity:int=45, 
+    fill_percent:float=0.85, 
+    cages_per_batch:int=5, 
+    between_aisle_dist:int=1, 
+    between_bay_dist:int=1, 
+    **unused:Any
+    ) -> tuple[float, dict[Any,dict[Any,list[int]]]]:
     """
     Constructs a set of batches from a set of orders to minimise distance
     
@@ -75,10 +90,36 @@ def batching_model(orders:dict[int,list[int]], aisle_assignments:dict[int,list[i
     # our model
     model = gp.Model("batching_strict_s")
 
-    zp_combs = [(o,a,k) for o in O for a in A for k in P if B_dict[(o,k)]==1 and A_dict[(k,a)]==1]
-    p_combs = [(t,a,b) for t in T for a in A for b in A if b > a]
-    A_even = [a for a in A if a%2 == 0]
-    A_odd = [a for a in A if a%2 == 1]
+    zp_combs = [
+        (o,a,k)
+        for o in O 
+        for a in A 
+        for k in P 
+        if (
+            B_dict[(o,k)]==1 
+            and A_dict[(k,a)]==1
+        )
+    ]
+    
+    p_combs = [
+        (t,a,b) 
+        for t in T 
+        for a in A 
+        for b in A 
+        if b > a
+    ]
+
+    A_even = [
+        a 
+        for a in A 
+        if a%2 == 0
+    ]
+
+    A_odd = [
+        a 
+        for a in A
+        if a%2 == 1
+    ]
 
     # the variables
     y = model.addVars(O, T, C, vtype = GRB.BINARY, name = "y") # if order o is assigned to cage c of batch t
@@ -89,7 +130,7 @@ def batching_model(orders:dict[int,list[int]], aisle_assignments:dict[int,list[i
     q_idx = model.addVars(T, lb=0, ub = num_aisles, vtype = GRB.INTEGER, name = "q_index") # the index of the last picked-from aisle for batch t
     F = model.addVars(T, vtype = GRB.BINARY, name = "F") # if the index of the first picked-from aisle is odd
     Q = model.addVars(T, vtype = GRB.BINARY, name = "Q") # if the index of the last aisle picked-from aisle is even
-    w = model.addVars(T, vtype = GRB.BINARY, name = "w") # auxiliary variable which takes the value 1 iff exactly one aisle contains a pick for batch t
+    w = model.addVars(T, vtype = GRB.BINARY, name = "w") # auxiliary variable which takes the value 1 if fewer than two aisles are picked from for batch t
     Pen = model.addVars(T, vtype = GRB.BINARY, name = "First_aisle_only_penalty") # an indicator for whether only the first aisle contains a pick (and a horizontal penalty of the 2M needs to be applied)
     p = model.addVars(p_combs, vtype = GRB.BINARY, name = "p") # if aisles a and b share a direction and form a consecutive pair of picked-from aisles for batch t
     E = model.addVars(T, vtype = GRB.BINARY, name = "E") # if batch t is non-empty
@@ -104,7 +145,6 @@ def batching_model(orders:dict[int,list[int]], aisle_assignments:dict[int,list[i
         )
 
     for t in T:
-
         model.addConstr(
             q_idx[t] == gp.quicksum(a*q[t,a] for a in A),
             name = f"retrieving_the_index_of_the_last_aisle_with_a_pick_for_batch_{t}"

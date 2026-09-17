@@ -1,9 +1,13 @@
 from collections import defaultdict
-from src.slap.utils.heuristic_helpers import quantity_that_fits, add_product, open_new_cage
+from src.slap.utils.heuristic_helpers import (
+    quantity_that_fits, 
+    add_product, 
+    open_new_cage
+)
 
-def create_batches(
+def heuristic_batching(
     shop_prod_dem:dict[tuple[int,int],int],
-    stored_product:dict[str,tuple[int,int]],
+    stored_product:dict[tuple,tuple[int,int]],
     weights_dict:dict[int,float],
     vol_dict:dict[int,float],
     num_aisles:int,
@@ -13,7 +17,7 @@ def create_batches(
     fill_percent:float=0.85,
     cages_per_trip:int=5,
     look_ahead:int=75,
-) -> dict[int:dict[int,list[int]]]:
+) -> dict[int,dict[int,list[int]]]:
     """
     Create a set of batches from a set of orders corresponding to a subset of shops and products, 
     using Tesco's current batching heuristic.
@@ -35,8 +39,9 @@ def create_batches(
     """
 
     # adjust capacities by fill-percent assumption
-    cage_weight_capacity, cage_vol_capacity = fill_percent*cage_weight_capacity, fill_percent*cage_vol_capacity
-    
+    cage_weight_capacity = fill_percent*cage_weight_capacity
+    cage_vol_capacity = fill_percent*cage_vol_capacity
+
     # create the slot ordering
     slots = []
 
@@ -154,17 +159,18 @@ def create_batches(
                         c_vol=c_vol
                     )
 
-                    c_weight, c_vol = add_product(product=product,
-                                                  quantity=quantity,
-                                                  shop_dem=shop_dem,
-                                                  c_weight=c_weight,
-                                                  c_vol=c_vol,
-                                                  trips=trips,
-                                                  trip=trip,
-                                                  cage=cage,
-                                                  weights_dict=weights_dict,
-                                                  vol_dict=vol_dict,
-                                      )
+                    c_weight, c_vol = add_product(
+                        product=product,
+                        quantity=quantity,
+                        shop_dem=shop_dem,
+                        c_weight=c_weight,
+                        c_vol=c_vol,
+                        trips=trips,
+                        trip=trip,
+                        cage=cage,
+                        weights_dict=weights_dict,
+                        vol_dict=vol_dict,
+                    )
 
                     # if a product is still in shop_dem then we couldn't fit all of it in
                     if product in shop_dem:
@@ -191,40 +197,43 @@ def create_batches(
                             if next_product not in shop_dem:
                                 continue
 
-                            quantity = quantity_that_fits(product=next_product,
-                                                          demand=shop_dem[next_product],
-                                                          weights_dict=weights_dict,
-                                                          vol_dict=vol_dict,
-                                                          cage_weight_capacity=cage_weight_capacity,
-                                                          cage_vol_capacity=cage_vol_capacity,
-                                                          c_weight=c_weight,
-                                                          c_vol=c_vol
-                                       )
+                            quantity = quantity_that_fits(
+                                product=next_product,
+                                demand=shop_dem[next_product],
+                                weights_dict=weights_dict,
+                                vol_dict=vol_dict,
+                                cage_weight_capacity=cage_weight_capacity,
+                                cage_vol_capacity=cage_vol_capacity,
+                                c_weight=c_weight,
+                                c_vol=c_vol
+                            )
 
-                            c_weight, c_vol = add_product(product=product,
-                                                          quantity=quantity,
-                                                          shop_dem=shop_dem,
-                                                          c_weight=c_weight,
-                                                          c_vol=c_vol,
-                                                          trips=trips,
-                                                          trip=trip,
-                                                          cage=cage,
-                                                          weights_dict=weights_dict,
-                                                          vol_dict=vol_dict,
-                                                      )
+                            c_weight, c_vol = add_product(
+                                product=product,
+                                quantity=quantity,
+                                shop_dem=shop_dem,
+                                c_weight=c_weight,
+                                c_vol=c_vol,
+                                trips=trips,
+                                trip=trip,
+                                cage=cage,
+                                weights_dict=weights_dict,
+                                vol_dict=vol_dict,
+                            )
 
                 # this is a fail-safe. The blocking product should still remain, and thus shop_dem > 0
                 if not shop_dem:
                     break
                 
                 # open a new cage and retry the original slot before the look-ahead
-                trip, cage, c_weight, c_vol = open_new_cage(trip=trip,
-                                                            cage=cage,
-                                                            c_weight=c_weight,
-                                                            c_vol=c_vol,
-                                                            trips=trips,
-                                                            cages_per_trip=cages_per_trip,
-                                              )
+                trip, cage, c_weight, c_vol = open_new_cage(
+                    trip=trip,
+                    cage=cage,
+                    c_weight=c_weight,
+                    c_vol=c_vol,
+                    trips=trips,
+                    cages_per_trip=cages_per_trip,
+                )
 
             else:
                 slot += 1
