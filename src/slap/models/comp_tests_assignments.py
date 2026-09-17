@@ -2,11 +2,34 @@ import math
 import pandas as pd
 import gurobipy as gp
 from gurobipy import GRB
+from dataclasses import dataclass
+
+@dataclass
+class WarehouseData:
+    """
+    warehouse-related input data.
+
+    attributes:
+        num_aisles: the number of aisles in the warehouse
+        num_bays: the number of bays in the warehouse
+        slot_capacity: the number of unique products that can fit into each (aisle,bay) pair
+        between_aisle_dist: the distance between consecutive aisles
+        between_bay_dist: the distance between consecutive bays
+    """
+    num_aisles:int
+    num_bays:int
+    slot_capacity:int
+    between_aisle_dist:int
+    between_bay_dist:int
+
+@dataclass
+class OrdersData:
+    num_orders:int
+    min_order_size:int
+    max_order_size:int
 
 def scatter_frequency_assignments(
-    num_aisles:int, 
-    num_bays:int, 
-    slot_capacity:int,
+    warehouse_data:WarehouseData,
     prods:list[int],
     scatter_frequency:int
 ) -> dict[int,list[int]]:
@@ -25,10 +48,10 @@ def scatter_frequency_assignments(
     """
     
     # aisle capacity
-    C = num_bays*slot_capacity
+    C = warehouse_data.num_bays*warehouse_data.slot_capacity
 
     # sets 
-    A = [a for a in range(num_aisles)]
+    A = [a for a in range(warehouse_data.num_aisles)]
     P = prods
 
     model = gp.Model("scatter_frequency_assignments")
@@ -61,11 +84,8 @@ def scatter_frequency_assignments(
     return aisle_assignments
 
 
-
 def aisle_directionality_assignments(
-    num_aisles:int, 
-    num_bays:int, 
-    slot_capacity:int,
+    warehouse_data:WarehouseData,
     prods:list[int], 
     same_direction:bool=True
 ) -> dict[int,list[int]]:
@@ -85,9 +105,9 @@ def aisle_directionality_assignments(
     - aisle_assignments: the products assigned to each aisle
     """
 
-    C = num_bays*slot_capacity
+    C = warehouse_data.num_bays*warehouse_data.slot_capacity
 
-    A = [a for a in range(num_aisles)]
+    A = [a for a in range(warehouse_data.num_aisles)]
 
     A_even = [
         a
@@ -158,9 +178,7 @@ def aisle_directionality_assignments(
 
 
 def scalability_assignments( 
-    num_aisles:int, 
-    num_bays:int, 
-    slot_capacity:int, 
+    warehouse_data:WarehouseData, 
     prods_by_dem:list[int],
     top_frac:float
 ) -> dict[int,list[int]]:
@@ -183,12 +201,12 @@ def scalability_assignments(
     num_prods = len(prods_by_dem)
     num_scattered_prods = math.floor(top_frac*num_prods)
 
-    C = num_bays*slot_capacity
+    C = warehouse_data.num_bays*warehouse_data.slot_capacity
 
     P = prods_by_dem
     S = prods_by_dem[:num_scattered_prods]
     U = prods_by_dem[num_scattered_prods:]
-    A = [a for a in range(num_aisles)]
+    A = [a for a in range(warehouse_data.num_aisles)]
 
     model = gp.Model("scalability_assignments")
 
@@ -227,9 +245,7 @@ def scalability_assignments(
 
 
 def permutation_assignments(
-    num_aisles:int, 
-    num_bays:int, 
-    slot_capacity:int,
+    warehouse_data:WarehouseData,
     prods_by_dem:list[int], 
     aisle_space_used:dict[int,int], 
 ) -> dict[int,list[int]]:
@@ -249,12 +265,12 @@ def permutation_assignments(
     - aisle_assignments: the products assigned to each aisle
     """
 
-    C = num_bays*slot_capacity
+    C = warehouse_data.num_bays*warehouse_data.slot_capacity
 
-    warehouse_capacity = num_aisles*num_bays*slot_capacity
+    warehouse_capacity = warehouse_data.num_aisles*warehouse_data.num_bays*warehouse_data.slot_capacity
     num_scattered_prods = warehouse_capacity - len(prods_by_dem)
 
-    A = [a for a in range(num_aisles)]
+    A = [a for a in range(warehouse_data.num_aisles)]
     P = prods_by_dem
     S = prods_by_dem[:num_scattered_prods]
 

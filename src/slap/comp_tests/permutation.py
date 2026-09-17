@@ -6,14 +6,41 @@ from slap.comp_tests.helpers import (
     weights_and_volumes, 
     create_max_batches
 )
+from dataclasses import dataclass
 
+@dataclass
+class DataFrames:
+    pick_data:pd.DataFrame
+    solution_allocation:pd.DataFrame
+
+@dataclass
+class WarehouseData:
+    """
+    warehouse-related input data.
+
+    attributes:
+        num_aisles: the number of aisles in the warehouse
+        num_bays: the number of bays in the warehouse
+        slot_capacity: the number of unique products that can fit into each (aisle,bay) pair
+        between_aisle_dist: the distance between consecutive aisles
+        between_bay_dist: the distance between consecutive bays
+    """
+    num_aisles:int
+    num_bays:int
+    slot_capacity:int
+    between_aisle_dist:int
+    between_bay_dist:int
+
+@dataclass
+class OrdersData:
+    num_orders:int
+    min_order_size:int
+    max_order_size:int
 
 def permutation_instance(
-    pick_data:pd.DataFrame, 
-    solution_allocation:pd.DataFrame, 
-    num_orders:int, 
-    min_order_size:int, 
-    max_order_size:int
+    data_frames:DataFrames, 
+    orders_data:OrdersData,
+    warehouse_data:WarehouseData
 ) -> dict[str,Any]:
     """
     Creates an instance for the batching model, where instances are a permutation of 
@@ -31,7 +58,7 @@ def permutation_instance(
     - instance: a kwargs instance ready for input into the batching model
     """
 
-    solution_allocation = solution_allocation.dropna(subset=["tpnd", "aisle"])
+    solution_allocation = data_frames.solution_allocation.dropna(subset=["tpnd", "aisle"])
     current_assignments = dict(zip(solution_allocation["tpnd"], solution_allocation["aisle"]))
 
     # prod_subset is all_prods here
@@ -50,11 +77,9 @@ def permutation_instance(
     )
 
     orders, prods_by_dem = create_orders(
-        pick_data=pick_data,
+        pick_data=data_frames.pick_data,
         prod_subset=prod_subset,
-        num_orders=num_orders,
-        min_order_size=min_order_size,
-        max_order_size=max_order_size,
+        orders_data=orders_data,
         volume_dict=volume_dict,
         weight_dict=weight_dict
     )
@@ -62,9 +87,7 @@ def permutation_instance(
     aisle_assignments = permutation_assignments(
         prods_by_dem=prods_by_dem,
         aisle_space_used=aisle_space_used,
-        num_aisles=70,
-        num_bays=122,
-        slot_capacity=2
+        warehouse_data=warehouse_data
     )
 
     max_batches = create_max_batches(
@@ -79,8 +102,8 @@ def permutation_instance(
         "max_batches":max_batches,
         "weights_dict":weight_dict,
         "volumes_dict":volume_dict,
-        "num_aisles":70,
-        "num_bays":122
+        "num_aisles":warehouse_data.num_aisles,
+        "num_bays":warehouse_data.num_bays
     }
     
     return instance

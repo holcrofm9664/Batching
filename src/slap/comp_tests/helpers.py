@@ -2,6 +2,20 @@ import random
 import math
 import pandas as pd
 
+from dataclasses import dataclass
+
+@dataclass
+class OrdersData:
+    num_orders:int
+    min_order_size:int
+    max_order_size:int
+
+@dataclass
+class CageData:
+    cage_weight_capacity:float
+    cage_volume_cagacipy:float
+    fill_percent:float
+
 def weights_and_volumes(
     solution_allocation:pd.DataFrame, 
     prod_subset:list[int]
@@ -35,14 +49,10 @@ def weights_and_volumes(
 def create_orders(
         pick_data:pd.DataFrame, 
         prod_subset:list[int], 
-        num_orders:int, 
-        min_order_size:int, 
-        max_order_size:int, 
+        orders_data:OrdersData, 
         volume_dict:dict[int,float], 
         weight_dict:dict[int,float], 
-        cage_weight_capacity:int=400, 
-        cage_volume_capacity:int=45, 
-        fill_percent:float=0.85
+        cage_data:CageData
     ) -> list[list[int]]:
     """
     Creates a set of synthetic orders based on user specifications and historical product demands
@@ -81,8 +91,8 @@ def create_orders(
 
     orders = []
 
-    while len(orders) < num_orders:
-        order_size = random.randint(min_order_size,max_order_size)
+    while len(orders) < orders_data.num_orders:
+        order_size = random.randint(orders_data.min_order_size,orders_data.max_order_size)
 
         order = random.choices(
             population = list(product_demands_dict.keys()),
@@ -93,7 +103,7 @@ def create_orders(
         order_weight = sum([weight_dict[k] for k in order])
         order_volume = sum([volume_dict[k] for k in order])
 
-        if order_weight < cage_weight_capacity*fill_percent and order_volume < cage_volume_capacity*fill_percent:
+        if order_weight < cage_data.cage_weight_capacity*cage_data.fill_percent and order_volume < cage_data.cage_volume_capacity*cage_data.fill_percent:
             orders.append(order)
 
     # Products ordered from highest to lowest demand
@@ -110,9 +120,7 @@ def create_max_batches(
     weights_dict:dict[int,float], 
     volumes_dict:dict[int,float], 
     orders:list[list[int]], 
-    cage_weight_capacity:int=400, 
-    cage_volume_capacity:int=45, 
-    fill_percent:float=0.85, 
+    cage_data:CageData, 
     buffer:float=0.25, 
     cages_per_batch:int=5
 ) -> int:
@@ -133,8 +141,8 @@ def create_max_batches(
     - max_batches: the maximum allowed number of batches
     """
 
-    cage_weight_capacity = cage_weight_capacity*fill_percent
-    cage_volume_capacity = cage_volume_capacity*fill_percent
+    cage_weight_capacity = cage_weight_capacity*cage_data.fill_percent
+    cage_volume_capacity = cage_volume_capacity*cage_data.fill_percent
 
     W = {
         o: sum(weights_dict[prod] for prod in order)

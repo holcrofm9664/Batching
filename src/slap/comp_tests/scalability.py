@@ -7,16 +7,41 @@ from slap.comp_tests.helpers import (
     weights_and_volumes, 
     create_max_batches
 )
+from dataclasses import dataclass
+
+@dataclass
+class DataFrames:
+    pick_data:pd.DataFrame
+    solution_allocation:pd.DataFrame
+
+@dataclass
+class WarehouseData:
+    """
+    warehouse-related input data.
+
+    attributes:
+        num_aisles: the number of aisles in the warehouse
+        num_bays: the number of bays in the warehouse
+        slot_capacity: the number of unique products that can fit into each (aisle,bay) pair
+        between_aisle_dist: the distance between consecutive aisles
+        between_bay_dist: the distance between consecutive bays
+    """
+    num_aisles:int
+    num_bays:int
+    slot_capacity:int
+    between_aisle_dist:int
+    between_bay_dist:int
+
+@dataclass
+class OrdersData:
+    num_orders:int
+    min_order_size:int
+    max_order_size:int
 
 def scalability_instance(
-    pick_data:pd.DataFrame, 
-    solution_allocation:pd.DataFrame, 
-    num_aisles:int, 
-    num_bays:int, 
-    slot_capacity:int, 
-    num_orders:int, 
-    min_order_size:int, 
-    max_order_size:int, 
+    data_frames:DataFrames, 
+    warehouse_data:WarehouseData, 
+    orders_data:OrdersData, 
     top_frac:float
     ) -> dict[str,Any]:
     """
@@ -38,31 +63,29 @@ def scalability_instance(
     - instance: a kwargs instance ready for input into the batching model
     """
 
-    all_prods = solution_allocation.dropna()["tpnd"].to_list()
+    all_prods = data_frames.solution_allocation.dropna()["tpnd"].to_list()
 
-    if (num_aisles*num_bays*slot_capacity)//(1+top_frac) > len(all_prods):
+    if (warehouse_data.num_aisles*warehouse_data.num_bays*warehouse_data.slot_capacity)//(1+top_frac) > len(all_prods):
         print(
-            f"The requested number of {(num_aisles*num_bays*slot_capacity)//(1+top_frac)}"
+            f"The requested number of {(warehouse_data.num_aisles*warehouse_data.num_bays*warehouse_data.slot_capacity)//(1+top_frac)}"
             f"exceeds the available number of products."
             f"Using {len(all_prods)} products instead."
         )
         prod_subset = all_prods
     else:
-        num_prods = int((num_aisles*num_bays*slot_capacity)//(1+top_frac))
+        num_prods = int((warehouse_data.num_aisles*warehouse_data.num_bays*warehouse_data.slot_capacity)//(1+top_frac))
         prod_subset = random.sample(all_prods, num_prods)
 
 
     weight_dict, volume_dict = weights_and_volumes(
-        solution_allocation=solution_allocation,
+        solution_allocation=data_frames.solution_allocation,
         prod_subset=prod_subset
     )
     
     orders, prods_by_dem = create_orders(
-        pick_data=pick_data,
+        pick_data=data_frames.pick_data,
         prod_subset = prod_subset,
-        num_orders=num_orders,
-        min_order_size=min_order_size,
-        max_order_size=max_order_size,
+        orders_data=orders_data,
         volume_dict=volume_dict,
         weight_dict=weight_dict
     )
@@ -70,9 +93,7 @@ def scalability_instance(
     
     aisle_assignments = scalability_assignments(
         prods_by_dem=prods_by_dem,
-        num_aisles=num_aisles,
-        num_bays=num_bays,
-        slot_capacity=slot_capacity,
+        warehouse_data=warehouse_data,
         top_frac=top_frac
     )
     
@@ -88,8 +109,8 @@ def scalability_instance(
         "max_batches":max_batches,
         "weights_dict":weight_dict,
         "volumes_dict":volume_dict,
-        "num_aisles":num_aisles,
-        "num_bays":num_bays
+        "num_aisles":warehouse_data.num_aisles,
+        "num_bays":warehouse_data.num_bays
     }
     
     return instance

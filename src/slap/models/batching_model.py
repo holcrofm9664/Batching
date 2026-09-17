@@ -2,20 +2,41 @@ import gurobipy as gp
 from gurobipy import GRB
 from typing import Any
 
+from dataclasses import dataclass
+
+@dataclass
+class WarehouseData:
+    """
+    warehouse-related input data.
+
+    attributes:
+        num_aisles: the number of aisles in the warehouse
+        num_bays: the number of bays in the warehouse
+        slot_capacity: the number of unique products that can fit into each (aisle,bay) pair
+        between_aisle_dist: the distance between consecutive aisles
+        between_bay_dist: the distance between consecutive bays
+    """
+    num_aisles:int
+    num_bays:int
+    slot_capacity:int
+    between_aisle_dist:int
+    between_bay_dist:int
+
+@dataclass
+class CageData:
+    cage_weight_capacity:float
+    cage_volume_capacity:float
+    fill_frac:float
+    
 def batching_model(
     orders:dict[int,list[int]], 
     aisle_assignments:dict[int,list[int]], 
     max_batches:int, 
     weights_dict:dict[int,int], 
     volumes_dict:dict[int,int], 
-    num_aisles:int, 
-    num_bays:int, 
-    cage_weight_capacity:int=400, 
-    cage_volume_capacity:int=45, 
-    fill_percent:float=0.85, 
-    cages_per_batch:int=5, 
-    between_aisle_dist:int=1, 
-    between_bay_dist:int=1, 
+    warehouse_data:WarehouseData, 
+    cage_data:CageData, 
+    cages_per_batch:int=5,  
     **unused:Any
     ) -> tuple[float, dict[Any,dict[Any,list[int]]]]:
     """
@@ -27,8 +48,7 @@ def batching_model(
     - max_batches: the maximum number of batches we wish to split our products into
     - weights_dict: the product weights
     - volumes_dict: the product volumes
-    - num_aisles: the number of aisles in the warehouse
-    - num_bays: the number of bays in the warehouse
+    - warehouse_data: dataclass containing warehouse specifications
     - cage_weight_capacity: the weight capacity of each cage
     - cage_volume_capacity: the volume capacity of each cage
     - fill_percent: the liquid fill percentage assumption
@@ -44,7 +64,8 @@ def batching_model(
     W, V = weights_dict, volumes_dict
 
     # adjust for prudential liquid-fill
-    cage_weight_capacity, cage_volume_capacity = fill_percent*cage_weight_capacity, fill_percent*cage_volume_capacity
+    cage_weight_capacity = cage_data.fill_percent*cage_data.cage_weight_capacity
+    cage_volume_capacity = cage_data.fill_percent*cage_data.cage_volume_capacity
 
     # orders need to be in a dictionary such that we can access the keys
     if type(orders) == list:
@@ -57,7 +78,7 @@ def batching_model(
     P = set(prod for aisle in aisle_assignments for prod in aisle_assignments[aisle]) # the set of products
     T = range(1, max_batches + 1) # set of batches
     O = orders.keys() # set of orders (unbreakable groups of orders)
-    A = range(0, num_aisles) # set of aisles
+    A = range(warehouse_data.num_aisles) # set of aisles
     C = range(1, cages_per_batch + 1) # the set of cages
 
     # if aisle a contains product k
@@ -85,7 +106,8 @@ def batching_model(
     }
 
     # calculating remaining parameters
-    L, M = between_bay_dist * (num_bays + 1), between_aisle_dist
+    L = warehouse_data.between_bay_dist*(warehouse_data.num_bays + 1) 
+    M = warehouse_data.between_aisle_dist
 
     # our model
     model = gp.Model("batching_strict_s")
@@ -127,7 +149,7 @@ def batching_model(
     zp = model.addVars(zp_combs, vtype = GRB.BINARY, name="zp") # if product k is picked from aisle a for order o
     f = model.addVars(T, A, vtype = GRB.BINARY, name = "f") # if aisle a is the first aisle with a pick for batch t
     q = model.addVars(T, A, vtype = GRB.BINARY, name = "q") # if aisle a is the last aisle with a pick for batch t
-    q_idx = model.addVars(T, lb=0, ub = num_aisles, vtype = GRB.INTEGER, name = "q_index") # the index of the last picked-from aisle for batch t
+    q_idx = model.addVars(T, lb=0, ub = warehouse_data.num_aisles, vtype = GRB.INTEGER, name = "q_index") # the index of the last picked-from aisle for batch t
     F = model.addVars(T, vtype = GRB.BINARY, name = "F") # if the index of the first picked-from aisle is odd
     Q = model.addVars(T, vtype = GRB.BINARY, name = "Q") # if the index of the last aisle picked-from aisle is even
     w = model.addVars(T, vtype = GRB.BINARY, name = "w") # auxiliary variable which takes the value 1 if fewer than two aisles are picked from for batch t
@@ -229,12 +251,12 @@ def batching_model(
             )
 
             model.addGenConstrIndicator(
-                f[t,a], 1, gp.quicksum(z[t,k] for k in range(0, a)) == 0,
+                f[t,a], 1, gp.quicksum(z[t,k] for k in range(a)) == 0,
                 name = f"if_aisle_{a}_is_the_first_aisle_to be_visited_for_batch_{t}_then_no_previous_aisles_have_been_visited_in_that_batch"
             )
 
             model.addGenConstrIndicator(
-                q[t,a], 1, gp.quicksum(z[t,k] for k in range(a+1, num_aisles)) == 0,
+                q[t,a], 1, gp.quicksum(z[t,k] for k in range(a+1, warehouse_data.num_aisles)) == 0,
                 name = f"if_aisle_{a}_is_the_last_aisle_to_be_visited_for_batch_{t}_then_no_further_aisles_will_be_visited_in_that_batch"
             )
 
