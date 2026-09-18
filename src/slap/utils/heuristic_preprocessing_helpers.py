@@ -1,21 +1,20 @@
 import pandas as pd
 import numpy as np
 from ast import literal_eval
+from slap.comp_tests.dataclasses import (
+    DataFrames
+)
 
 def clean_dataframes(
-    pick_data:pd.DataFrame, 
-    solution_allocation:pd.DataFrame
+    data_frames:DataFrames
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """
-    Cleans the dataframes by dropping NA values and renaming columns
+    """Cleans the dataframes by dropping NA values and renaming columns.
 
-    Inputs:
-    - pick_data: the dataframe containing the pick data
-    - solution_allocation: the dataframe containing storage assignments and product weights and volumes
+    Args:
+        data_frames: Data frames containing assignments and pick data.
 
-    Outputs:
-    - pick_data: the cleaned pick_data dataframe
-    - solution_allocation: the cleaned solution_allocation dataframe
+    Returns:
+        The cleaned data frames.
     """
 
     column_headers_dict = {
@@ -36,10 +35,12 @@ def clean_dataframes(
         "pick_qty":"qty_to_pick",
         "Aisle":"aisle"
     }
+    # extract the dataframes, so we don't modify the dataclass
+    pick_data, solution_allocation = data_frames.pick_data, data_frames.solution_allocation
 
     # ensure slot_pair is a tuple
     solution_allocation["Slot_Pair"] = (
-        solution_allocation["Slot_Pair"].
+        data_frames.solution_allocation["Slot_Pair"].
         apply(literal_eval)
     )
 
@@ -64,16 +65,15 @@ def weights_and_volumes(
     solution_allocation:pd.DataFrame, 
     prod_subset:list[int]
 ) -> tuple[dict[int,float], dict[int,float]]:
-    """ 
-    Constructs a weights dictionary and a volumes dictionary from the dataframe
+    """Constructs a weights dictionary and a volumes dictionary from the dataframe.
 
-    Inputs:
-    - solution_allocation: the dataframe containing the weights and volumes
-    - prod_subset: the products remaining after we have filtered for time and a chosen product subset
+    Args:
+        solution_allocation: Dataframe containing the weights and volumes.
+        prod_subset: Products remaining after we have filtered for time and a chosen 
+            product subset.
 
-    Outputs:
-    - volume_dict: the product volumes
-    - weight_dict: the product weights 
+    Returns:
+        The dictionaries of weights and volumes.
     """
 
     # construct the weights and volumes dictionaries
@@ -88,7 +88,7 @@ def weights_and_volumes(
     weight_dict = df["weight"].to_dict()
     volume_dict = df["volume"].to_dict()
     
-    return volume_dict, weight_dict
+    return weight_dict, volume_dict
 
 
 def demands(
@@ -96,16 +96,15 @@ def demands(
     prod_subset:list[int], 
     stores_subset:list[int]
 ) -> tuple[dict[tuple[int,int],int], dict[int,int], dict[int,int]]:
-    """ 
-    Creates the shop_prod_dem dict
+    """Creates the shop_prod_dem dict.
 
-    Inputs:
-    - pick_data: a dataframe containing the pick data
-    - prod_subset: the remaining products we are optimising 
-    - store_subset: the remaining stores we are optimising
+    Args:
+        pick_data: Data frame containing the pick data.
+        prod_subset: The products in the warehouse.
+        store_subset: The stores used in the instance.
     
-    Outputs:
-    - shop_prod_dem: the demand for each (shop,product) pair
+    Returns:
+        Demand for each (shop,product) pair.
     """
 
     # demand of each shop-prod combination
@@ -134,24 +133,20 @@ def demands(
 def sample_products_stores(
     num_prods:int, 
     num_stores:int, 
-    solution_allocation:pd.DataFrame, 
-    pick_data:pd.DataFrame
+    data_frames:DataFrames
 ) -> list[int]:
-    """
-    Samples products and stores to be kept in the instance
+    """Samples products and stores to be kept in the instance.
 
-    Inputs:
-    - num_prods: the number of products to include in the instance
-    - num_stores: the number of stores to include in the instance
-    - solution_allocation: the dataframe containing all products
-    - pick_data: the pick data dataframe
+    Args:
+        num_prods: Number of products to include in the instance.
+        num_stores: Number of stores to include in the instance.
+        data_frames: Data frames containg assignments and pick data.
 
-    Outputs:
-    - all_prods: a list of all products 
-    - sampled_prods: the products we will use in our instance
-    - sampled_stores: a stores we will use in our instance
+    Returns:
+        All the products, the sampled products and the sampled stores.
     """
     
+    pick_data, solution_allocation  = data_frames.pick_data, data_frames.solution_allocation
     all_prods = solution_allocation["product"].unique()
     all_stores = pick_data["store_id"].unique()
 

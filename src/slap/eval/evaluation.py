@@ -1,38 +1,40 @@
 from itertools import product
-from typing import Tuple, Any
+from typing import Any
 import numpy as np
+from slap.comp_tests.dataclasses import WarehouseData
 
-def calculate_distance_one_trip(aisle_assignments:dict, trip:dict[str,list[int]], between_aisle_dist:float, between_bay_dist:float, num_bays:int) -> float:
-    """
-    Calculates the distance travelled in picking a single order
+def calculate_distance_one_batch(
+    aisle_assignments:dict, 
+    batch:dict[str,list[int]], 
+    warehouse_data:WarehouseData
+) -> float:
+    """Calculates the distance travelled in picking a single order
 
-    Inputs:
-    - aisle_assignments: a dictionary containing the products (keys) and locations (values). Locations can either be slot tuples or aisle integers
-    - trip: a single trip of several cages
-    - between_aisle_dist: the distance between two consecutive aisles in the warehouse
-    - between_bay_distance: the distance between two consecutive bays in the warehouse
-    - num_bays: the number of bays in the warehouse
+    Args:
+        aisle_assignments: a dictionary containing the products (keys) and locations (values). Locations can either be slot tuples or aisle integers
+        batch: Single batch of several cages.
+        warehouse_data: Warehouse-related data.
 
-    Outputs:
-    - distance: the total distance travelled in picking the order
+    Returns:
+        The total distance travelled in picking the order.
     """
    
     # protect against infeasibility
     if len(aisle_assignments) == 0:
         return 0
     
-    M, N = between_aisle_dist, between_bay_dist
+    M, N = warehouse_data.between_aisle_dist, warehouse_data.between_bay_dist
 
     min_dist = np.inf
 
-    prods_in_trip = set([prod for cage in trip for prod in trip[cage]])
+    prods_in_batch = set([prod for cage in batch for prod in batch[cage]])
 
-    aisle_assignments_trip = {k:[x for x in aisle_assignments[k] if x in prods_in_trip] for k,_ in aisle_assignments.items()}
+    aisle_assignments_batch = {k:[x for x in aisle_assignments[k] if x in prods_in_batch] for k,_ in aisle_assignments.items()}
 
     # Product -> possible aisles
     product_dict = {}
 
-    for aisle, products in aisle_assignments_trip.items():
+    for aisle, products in aisle_assignments_batch.items():
         for prod in products:
             product_dict.setdefault(prod, []).append(aisle)
 
@@ -41,7 +43,7 @@ def calculate_distance_one_trip(aisle_assignments:dict, trip:dict[str,list[int]]
 
     for choices in product(*product_dict.values()):
 
-        assignment = {aisle: [] for aisle in aisle_assignments_trip}
+        assignment = {aisle: [] for aisle in aisle_assignments_batch}
         for prod, aisle in zip(product_dict, choices):
             assignment[aisle].append(prod)
         all_assignments.append(assignment)
@@ -67,7 +69,7 @@ def calculate_distance_one_trip(aisle_assignments:dict, trip:dict[str,list[int]]
         L_up = (max(aisles)+1) % 2 # if last aisle is an up
 
         # calculate the distance travelled traversing a single aisle
-        L = (num_bays+1)*N # distance travelled traversing one aisle
+        L = (warehouse_data.num_bays+1)*N # distance travelled traversing one aisle
 
         # calculate the horizontal distance to the final aisle
         H = (max(aisles))*M  # horizontal distance to final aisle
@@ -81,32 +83,30 @@ def calculate_distance_one_trip(aisle_assignments:dict, trip:dict[str,list[int]]
     return distance
     
 
-def calculate_distance_all_trips(trips:dict[Any,dict[Any,list[int]]], aisle_assignments:dict[int,list[int]], between_aisle_dist:int, between_bay_dist:int, num_bays:int) -> Tuple[int, dict[Any,int]]:
-    """
-    Calculates the distance for all trips
+def calculate_distance_all_batches(
+    batches:dict[Any,dict[Any,list[int]]], 
+    aisle_assignments:dict[int,list[int]], 
+    warehouse_data:WarehouseData
+) -> tuple[int, dict[Any,int]]:
+    """Calculates the distance for all batches.
 
-    Inputs:
-    - trips: the set of trips returned by the optimisation
-    - aisle_assignments: the set of aisle assignments (can include scattered storage)
-    - between_aisle_dist: the distance between consecutive aisles
-    - between_bay_dist: the distance between consecutive bays
-    - num_bays: the number of bays in each aisle
+    Args:
+        batches: Set of batches returned by the optimisation.
+        aisle_assignments: Set of aisle assignments, including scattered storage.
+        warehouse_data: Warehouse-related data.
 
-    Outputs:
-    - total_distance: the total distance across all trips
-    - dist_by_trip: the distance of each trip
+    Returns:
+        The total distance and distance by batch.
     """
     
-    dist_by_trip = {}
+    dist_by_batch = {}
 
-    for i, trip in trips.items():
-        distance = calculate_distance_one_trip(aisle_assignments=aisle_assignments,
-                                               trip=trip,
-                                               between_aisle_dist=between_aisle_dist,
-                                               between_bay_dist=between_bay_dist,
-                                               num_bays=num_bays)
-        dist_by_trip[i] = distance
+    for i, batch in batches.items():
+        distance = calculate_distance_one_batch(aisle_assignments=aisle_assignments,
+                                               batch=batch,
+                                               warehouse_data=warehouse_data)
+        dist_by_batch[i] = distance
 
-    total_distance = sum(dist_by_trip.values())
+    total_distance = sum(dist_by_batch.values())
 
-    return total_distance, dist_by_trip
+    return total_distance, dist_by_batch

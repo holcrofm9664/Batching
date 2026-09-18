@@ -4,53 +4,50 @@ from src.slap.utils.heuristic_helpers import (
     add_product, 
     open_new_cage
 )
+from slap.comp_tests.dataclasses import (
+    WarehouseData,
+    CageData
+)
 
 def heuristic_batching(
     shop_prod_dem:dict[tuple[int,int],int],
     stored_product:dict[tuple,tuple[int,int]],
     weights_dict:dict[int,float],
     vol_dict:dict[int,float],
-    num_aisles:int,
-    num_bays:int,
-    cage_weight_capacity:float,
-    cage_vol_capacity:float,
-    fill_percent:float=0.85,
+    warehouse_data:WarehouseData,
+    cage_data:CageData,
     cages_per_trip:int=5,
     look_ahead:int=75,
 ) -> dict[int,dict[int,list[int]]]:
-    """
-    Create a set of batches from a set of orders corresponding to a subset of shops and products, 
-    using Tesco's current batching heuristic.
+    """Create a set of batches using the current heuristic.
 
-    Inputs:
-    - shop_prod_dem: the demand for each shop-product pair
-    - stored_product: the products stored in each (aisle,bay) pair
-    - weights_dict: the product weights dictionary
-    - vol_dict: the product volumes dictionary
-    - num_aisles: the number of aisles
-    - num_bays: the number of bays
-    - cage_weight_capacity: the cage weight capacity
-    - cage_vol_capacity: the cage volume capacity
-    - cages_per_trip: the number of cages in each trip
-    - look_ahead: the number of slots look-ahead when one item cannot fit into a cage
+    Args:
+        shop_prod_dem: Demand for each shop-product pair.
+        stored_product: Products stored in each (aisle,bay) pair.
+        weights_dict: Product weights.
+        vol_dict: Product volumes.
+        warehouse_data: Warehouse-related data.
+        cage_data: Cage-related data.
+        cages_per_trip: Number of cages in each trip.
+        look_ahead: Number of slots in the look-ahead.
 
-    Outputs:
-    - trips: the trips dictionary
+    Returns:
+        The trips.
     """
 
     # adjust capacities by fill-percent assumption
-    cage_weight_capacity = fill_percent*cage_weight_capacity
-    cage_vol_capacity = fill_percent*cage_vol_capacity
+    cage_weight_capacity = cage_data.fill_percent*cage_weight_capacity
+    cage_vol_capacity = cage_data.fill_percent*cage_vol_capacity
 
     # create the slot ordering
     slots = []
 
-    for aisle in range(num_aisles):
+    for aisle in range(warehouse_data.num_aisles):
 
         bays = (
-            range(num_bays)
+            range(warehouse_data.num_bays)
             if aisle % 2 == 0
-            else reversed(range(num_bays))
+            else reversed(range(warehouse_data.num_bays))
         )
 
         slots.extend((aisle, bay) for bay in bays)

@@ -1,33 +1,11 @@
 import gurobipy as gp
 from gurobipy import GRB
 from typing import Any
-
-from dataclasses import dataclass
-
-@dataclass
-class WarehouseData:
-    """
-    warehouse-related input data.
-
-    attributes:
-        num_aisles: the number of aisles in the warehouse
-        num_bays: the number of bays in the warehouse
-        slot_capacity: the number of unique products that can fit into each (aisle,bay) pair
-        between_aisle_dist: the distance between consecutive aisles
-        between_bay_dist: the distance between consecutive bays
-    """
-    num_aisles:int
-    num_bays:int
-    slot_capacity:int
-    between_aisle_dist:int
-    between_bay_dist:int
-
-@dataclass
-class CageData:
-    cage_weight_capacity:float
-    cage_volume_capacity:float
-    fill_frac:float
-    
+from slap.comp_tests.dataclasses import (
+    WarehouseData,
+    CageData
+)
+ 
 def batching_model(
     orders:dict[int,list[int]], 
     aisle_assignments:dict[int,list[int]], 
@@ -39,26 +17,20 @@ def batching_model(
     cages_per_batch:int=5,  
     **unused:Any
     ) -> tuple[float, dict[Any,dict[Any,list[int]]]]:
-    """
-    Constructs a set of batches from a set of orders to minimise distance
+    """Constructs a set of batches from a set of orders to minimise distance.
     
-    Inputs:
-    - orders: a dictionary of orders, constituting items which cannot be picked in different trips (e.g. with the same destination shop)
-    - aisle_assignments: the current assignment of products to aisles, based on the previous run of the strict s-shape model
-    - max_batches: the maximum number of batches we wish to split our products into
-    - weights_dict: the product weights
-    - volumes_dict: the product volumes
-    - warehouse_data: dataclass containing warehouse specifications
-    - cage_weight_capacity: the weight capacity of each cage
-    - cage_volume_capacity: the volume capacity of each cage
-    - fill_percent: the liquid fill percentage assumption
-    - cages_per_batch: the number of cages each split can be split into
-    - between_aisle_dist: the distance between two consecutive aisles
-    - between_bay_dist: the distance between two consecutive bays
+    Args:
+        orders: Orders constituting items which cannot be picked in different trips.
+        aisle_assignments: Current assignment of products to aisles.
+        max_batches: Maximum permitted number of batches.
+        weights_dict: Product weights.
+        volumes_dict: Product volumes.
+        warehouse_data: Warehouse-related data.
+        cage_data: Cage-related data.
+        cages_per_batch: the number of cages each split can be split into
     
-    Outputs:
-    - distance: the final distance obtained for the fixed assignments and new batches
-    - trips: the batches reformulated back into trips for the strict s-shape model
+    Returns:
+        The final batches and corresponding total distance.
     """
 
     W, V = weights_dict, volumes_dict

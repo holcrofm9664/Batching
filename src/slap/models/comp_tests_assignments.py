@@ -1,50 +1,23 @@
 import math
-import pandas as pd
 import gurobipy as gp
 from gurobipy import GRB
-from dataclasses import dataclass
+from slap.comp_tests.dataclasses import WarehouseData
 
-@dataclass
-class WarehouseData:
-    """
-    warehouse-related input data.
-
-    attributes:
-        num_aisles: the number of aisles in the warehouse
-        num_bays: the number of bays in the warehouse
-        slot_capacity: the number of unique products that can fit into each (aisle,bay) pair
-        between_aisle_dist: the distance between consecutive aisles
-        between_bay_dist: the distance between consecutive bays
-    """
-    num_aisles:int
-    num_bays:int
-    slot_capacity:int
-    between_aisle_dist:int
-    between_bay_dist:int
-
-@dataclass
-class OrdersData:
-    num_orders:int
-    min_order_size:int
-    max_order_size:int
 
 def scatter_frequency_assignments(
     warehouse_data:WarehouseData,
     prods:list[int],
     scatter_frequency:int
 ) -> dict[int,list[int]]:
-    """
-    Creates assignments for the scatter frequency computational tests
+    """Creates assignments for the scatter frequency computational tests.
 
-    Inputs:
-    - num_aisles: the number of aisles in the warehouse
-    - num_bays: the number of bays in each aisle
-    - slot_capacity: the number of unique products that can be placed into each (aisle,bay) slot
-    - prods: a list of products to be assigned to aisles
-    - scatter_frequency: the number of aisles each product is assigned to
+    Args:
+        warehouse_data: Warehouse-related data.
+        prods: Products to be assigned to aisles.
+        scatter_frequency: Number of aisles each product is assigned to.
 
-    Outputs:
-    - aisle_assignments: the products assigned to each aisle
+    Returns:
+        The aisle assignments.
     """
     
     # aisle capacity
@@ -89,20 +62,17 @@ def aisle_directionality_assignments(
     prods:list[int], 
     same_direction:bool=True
 ) -> dict[int,list[int]]:
-    """
-    Creates assignments for the aisle directionality computational tests
+    """Creates assignments for the aisle directionality computational tests.
 
-    Inputs:
-    - num_aisles: the number of aisles in the warehouse
-    - num_bays: the number of bays in each aisle
-    - slot_capacity: the number of unique products that can be placed into each (aisle,bay) slot
-    - prods: a list of products to be assigned to aisles
-    - same_direction: if products are to be scattered across aisles wuth the same 
-      direction. If set of False, they will be placed only in aisles with a different 
-      direction
+    Args:
+        warehouse_data: Warehouse-related data.
+        prods: Products to be assigned to aisles
+        same_direction: If products are to be scattered across aisles with the same 
+            direction. If False, they will be placed only in aisles with a different 
+            direction
 
-    Outputs:
-    - aisle_assignments: the products assigned to each aisle
+    Returns:
+        The aisle assignments.
     """
 
     C = warehouse_data.num_bays*warehouse_data.slot_capacity
@@ -176,26 +146,20 @@ def aisle_directionality_assignments(
 
     return aisle_assignments
 
-
 def scalability_assignments( 
     warehouse_data:WarehouseData, 
     prods_by_dem:list[int],
     top_frac:float
 ) -> dict[int,list[int]]:
-    """
-    Creates assignments for the scalability computational tests
+    """Creates assignments for the scalability computational tests.
 
-    Inputs:
-    - num_aisles: the number of aisles in the warehouse
-    - num_bays: the number of bays in each aisle
-    - slot_capacity: the number of unique products that can be placed into each 
-      (aisle,bay) slot
-    - prods_by_dem: a list of products to be assigned to aisles, sorted in decreasing 
-      order of demand
-    - top_frac: the fraction of products that are to be scattered across two aisles
+    Args:
+        warehouse_data: Warehouse-related data.
+        prods_by_dem: Products to be assigned to aisles, sorted by demand.
+        top_frac: Fraction of products that are to be scattered across two aisles.
 
-    Outputs:
-    - aisle_assignments: the products assigned to each aisle
+    Returns:
+        The aisle assignments.
     """
 
     num_prods = len(prods_by_dem)
@@ -243,26 +207,20 @@ def scalability_assignments(
 
     return aisle_assignments
 
-
 def permutation_assignments(
     warehouse_data:WarehouseData,
     prods_by_dem:list[int], 
     aisle_space_used:dict[int,int], 
 ) -> dict[int,list[int]]:
-    """
-    Creates assignments for the scalability computational tests
+    """Creates assignments for the scalability computational tests.
 
-    Inputs:
-    - num_aisles: the number of aisles in the warehouse
-    - num_bays: the number of bays in each aisle
-    - slot_capacity: the number of unique products that can be placed into each 
-      (aisle,bay) slot
-    - prods_by_dem: a list of products to be assigned to aisles, sorted in decreasing 
-      order of demand
-    - aisle_space_used: the aisle space already used by products assigned there
+    Args:
+        warehouse_data: Warehouse-related data.
+        prods_by_dem: Products to be assigned to aisles, sorted by demand.
+        aisle_space_used: Aisle space already used by products assigned there.
 
-    Outputs:
-    - aisle_assignments: the products assigned to each aisle
+    Returns:
+        The aisle assignments.
     """
 
     C = warehouse_data.num_bays*warehouse_data.slot_capacity

@@ -6,56 +6,28 @@ from slap.comp_tests.helpers import (
     weights_and_volumes, 
     create_max_batches
 )
-from dataclasses import dataclass
-
-@dataclass
-class DataFrames:
-    pick_data:pd.DataFrame
-    solution_allocation:pd.DataFrame
-
-@dataclass
-class WarehouseData:
-    """
-    warehouse-related input data.
-
-    attributes:
-        num_aisles: the number of aisles in the warehouse
-        num_bays: the number of bays in the warehouse
-        slot_capacity: the number of unique products that can fit into each (aisle,bay) pair
-        between_aisle_dist: the distance between consecutive aisles
-        between_bay_dist: the distance between consecutive bays
-    """
-    num_aisles:int
-    num_bays:int
-    slot_capacity:int
-    between_aisle_dist:int
-    between_bay_dist:int
-
-@dataclass
-class OrdersData:
-    num_orders:int
-    min_order_size:int
-    max_order_size:int
+from slap.comp_tests.dataclasses import (
+    DataFrames,
+    WarehouseData,
+    OrdersData
+)
 
 def permutation_instance(
     data_frames:DataFrames, 
     orders_data:OrdersData,
     warehouse_data:WarehouseData
 ) -> dict[str,Any]:
-    """
-    Creates an instance for the batching model, where instances are a permutation of 
-    true assignments with added random scattering of most-demanded products.
+    """Creates a permutation of true assignments with random scattering of 
+    most-demanded products.
 
-    Inputs:
-    - pick_data: the pick data dataframe, containing demands
-    - solution_allocation: the solution allocation dataframe, containing assignments, 
-      weights and volumes
-    - num_orders: the number of orders we want to use in the test
-    - min_order_size: the minimum permitted size of orders
-    - max_order_size: the maximum permitted size of orders
+    Args:
+        data_frames: Data frames containing assignments and pick data.
+        num_orders: Number of orders used in the tests.
+        orders_data: Orders-related data.
+        warehouse_data: Warehouse-related data.
 
-    Outputs:
-    - instance: a kwargs instance ready for input into the batching model
+    Returns:
+        A kwargs instance ready for input into the batching model.
     """
 
     solution_allocation = data_frames.solution_allocation.dropna(subset=["tpnd", "aisle"])
