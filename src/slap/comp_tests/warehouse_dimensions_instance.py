@@ -13,13 +13,13 @@ from slap.comp_tests.dataclasses import (
 )
 
 
-def scalability_instance(
+def warehouse_dimensions(
     data_frames:DataFrames, 
     warehouse_data:WarehouseData, 
     orders_data:OrdersData, 
     top_frac:float
     ) -> dict[str,Any]:
-    """Creates an instance for the scalability computational tests.
+    """Creates an instance for the warehouse dimensions computational tests.
 
     Args:
         data_frames: Data frames containing assignments and pick data.

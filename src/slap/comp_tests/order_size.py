@@ -13,13 +13,13 @@ from slap.comp_tests.dataclasses import (
 )
 
 
-def scalability_instance(
+def order_size_instance(
     data_frames:DataFrames, 
     warehouse_data:WarehouseData, 
     orders_data:OrdersData, 
     top_frac:float
     ) -> dict[str,Any]:
-    """Creates an instance for the scalability computational tests.
+    """Creates an instance for the order_size computational tests.
 
     Args:
         data_frames: Data frames containing assignments and pick data.
@@ -33,7 +33,6 @@ def scalability_instance(
 
     if top_frac > 1 or top_frac < 0:
         print(f"top_frac must be between 0 and 1. Fraction given: {top_frac}.")
-        
     all_prods = data_frames.solution_allocation.dropna()["tpnd"].to_list()
 
     if (warehouse_data.num_aisles*warehouse_data.num_bays*warehouse_data.slot_capacity)//(1+top_frac) > len(all_prods):
