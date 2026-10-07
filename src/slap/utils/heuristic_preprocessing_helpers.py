@@ -1,12 +1,10 @@
 import pandas as pd
 import numpy as np
 from ast import literal_eval
-from slap.comp_tests.dataclasses import (
-    DataFrames
-)
 
 def clean_dataframes(
-    data_frames:DataFrames
+    pick_data:pd.DataFrame,
+    solution_allocation:pd.DataFrame
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Cleans the dataframes by dropping NA values and renaming columns.
 
@@ -36,11 +34,11 @@ def clean_dataframes(
         "Aisle":"aisle"
     }
     # extract the dataframes, so we don't modify the dataclass
-    pick_data, solution_allocation = data_frames.pick_data, data_frames.solution_allocation
+    pick_data, solution_allocation = pick_data, solution_allocation
 
     # ensure slot_pair is a tuple
     solution_allocation["Slot_Pair"] = (
-        data_frames.solution_allocation["Slot_Pair"].
+        solution_allocation["Slot_Pair"].
         apply(literal_eval)
     )
 
@@ -133,7 +131,8 @@ def demands(
 def sample_products_stores(
     num_prods:int, 
     num_stores:int, 
-    data_frames:DataFrames
+    pick_data:pd.DataFrame,
+    solution_allocation:pd.DataFrame
 ) -> list[int]:
     """Samples products and stores to be kept in the instance.
 
@@ -146,7 +145,7 @@ def sample_products_stores(
         All the products, the sampled products and the sampled stores.
     """
     
-    pick_data, solution_allocation  = data_frames.pick_data, data_frames.solution_allocation
+    pick_data, solution_allocation  = pick_data, solution_allocation
     all_prods = solution_allocation["product"].unique()
     all_stores = pick_data["store_id"].unique()
 

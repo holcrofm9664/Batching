@@ -3,20 +3,21 @@ import numpy as np
 import random
 import math
 from ast import literal_eval
-from slap.comp_tests.dataclasses import (
-    DataFrames,
+from slap.utils.dataclasses import (
     OrdersData,
     CageData,
     WarehouseData
 )
 
 def clean_dataframes(
-    data_frames:DataFrames
+    pick_data:pd.DataFrame,
+    solution_allocation:pd.DataFrame
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Cleans the dataframes by dropping NA values and renaming columns.
 
     Args:
-        data_frames: Data frames containing assignments and pick data.
+        pick_data: Dataframe containing orders data.
+        solution_allocation: Dataframe containing storage assignments.
 
     Returns:
         The cleaned data frames.
@@ -41,11 +42,11 @@ def clean_dataframes(
         "Aisle":"aisle"
     }
     # extract the dataframes, so we don't modify the dataclass
-    pick_data, solution_allocation = data_frames.pick_data, data_frames.solution_allocation
+    pick_data, solution_allocation = pick_data, solution_allocation
 
     # ensure slot_pair is a tuple
     solution_allocation["Slot_Pair"] = (
-        data_frames.solution_allocation["Slot_Pair"].
+        solution_allocation["Slot_Pair"].
         apply(literal_eval)
     )
 
@@ -68,19 +69,21 @@ def clean_dataframes(
 
 def sample_products(
     num_prods:int, 
-    data_frames:DataFrames
+    pick_data:pd.DataFrame,
+    solution_allocation:pd.DataFrame
 ) -> list[int]:
-    """.Samples products to be kept in the instance.
+    """Samples products to be kept in the instance.
 
     Args:
         num_prods: the number of products to include in the instance
-        data_frames: data frames containing assignments and pick data.
+        pick_data: Dataframe containing orders data.
+        solution_allocation: Dataframe containing storage assignments.
 
     Returns:
         All the products and the products that have been sampled.
     """
 
-    pick_data, solution_allocation = data_frames.pick_data, data_frames.solution_allocation
+    pick_data, solution_allocation = pick_data, solution_allocation
 
     all_prods = solution_allocation["product"].unique()
 
@@ -187,8 +190,8 @@ def create_orders(
         order_volume = sum([volume_dict[k] for k in order])
 
         if (
-            order_weight < cage_data.cage_weight_capacity*cage_data.fill_percent 
-            and order_volume < cage_data.cage_volume_capacity*cage_data.fill_percent
+            order_weight < cage_data.cage_weight_capacity*cage_data.fill_frac 
+            and order_volume < cage_data.cage_volume_capacity*cage_data.fill_frac
         ):
             orders.append(order)
 
@@ -217,8 +220,8 @@ def create_max_batches(
         The maximum allowed number of batches.
     """
 
-    cage_weight_capacity = cage_weight_capacity*cage_data.fill_percent
-    cage_volume_capacity = cage_volume_capacity*cage_data.fill_percent
+    cage_weight_capacity = cage_weight_capacity*cage_data.fill_frac
+    cage_volume_capacity = cage_volume_capacity*cage_data.fill_frac
 
     W = {
         o: sum(weights_dict[prod] for prod in order)

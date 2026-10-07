@@ -1,7 +1,7 @@
 import gurobipy as gp
 from gurobipy import GRB
 from typing import Any
-from slap.comp_tests.dataclasses import (
+from slap.utils.dataclasses import (
     WarehouseData,
     CageData
 )
@@ -36,8 +36,8 @@ def batching_model(
     W, V = weights_dict, volumes_dict
 
     # adjust for prudential liquid-fill
-    cage_weight_capacity = cage_data.fill_percent*cage_data.cage_weight_capacity
-    cage_volume_capacity = cage_data.fill_percent*cage_data.cage_volume_capacity
+    cage_weight_capacity = cage_data.fill_frac*cage_data.cage_weight_capacity
+    cage_volume_capacity = cage_data.fill_frac*cage_data.cage_volume_capacity
 
     # orders need to be in a dictionary such that we can access the keys
     if type(orders) == list:

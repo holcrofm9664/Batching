@@ -8,23 +8,20 @@ from slap.utils.model_preprocessing_helpers import (
     create_aisle_assignments
 )
 
+from slap.utils.dataclasses import (
+    WarehouseData,
+    CageData,
+    OrdersData
+)
+
 def preprocessing_function_batching(
     pick_data:pd.DataFrame, 
     solution_allocation:pd.DataFrame, 
     num_products:int, 
-    num_orders:int, 
-    min_order_size:int, 
-    max_order_size:int, 
-    num_aisles:int, 
-    num_bays:int, 
-    num_zones:int=3, 
-    slot_capacity:int=2, 
-    between_aisle_dist:int=1, 
-    between_bay_dist:int=1, 
+    orders_data:OrdersData, 
+    warehouse_data:WarehouseData,  
+    cage_data:CageData,
     cages_per_batch:int=5, 
-    cage_weight_capacity:int=400, 
-    cage_volume_capacity:int=45, 
-    fill_percent:float=0.85, 
     buffer:float=0.25
 ) -> tuple[list[list[int]], dict[int,list[int]], int, dict[int,float], dict[int,float], int, int, int, int, float, int, int, int]:
 
@@ -50,35 +47,26 @@ def preprocessing_function_batching(
     orders, product_demands_dict = create_orders(
         pick_data=pick_data,
         prod_subset=prod_subset,
-        num_orders=num_orders,
-        min_order_size=min_order_size,
-        max_order_size=max_order_size,
+        orders_data=orders_data,
         volume_dict=volumes_dict,
         weight_dict=weights_dict,
-        cage_weight_capacity=cage_weight_capacity,
-        cage_volume_capacity=cage_volume_capacity,
-        fill_percent=fill_percent
+        cage_data=cage_data
     )
 
     max_batches = create_max_batches(
         weights_dict=weights_dict,
         volumes_dict=volumes_dict,
         orders=orders,
-        cage_weight_capacity=cage_weight_capacity,
-        cage_volume_capacity=cage_volume_capacity,
-        fill_percent=fill_percent,
+        cage_data=cage_data,
         buffer=buffer,
         cages_per_batch=cages_per_batch
     )
     
     aisle_assignments = create_aisle_assignments(
         prod_subset=prod_subset,
-        num_zones=num_zones,
-        num_aisles=num_aisles,
-        num_bays=num_bays,
+        warehouse_data=warehouse_data,
         solution_allocation=solution_allocation,
         product_demands_dict=product_demands_dict,
-        slot_capacity=slot_capacity
     )
 
     instance = {
@@ -87,14 +75,9 @@ def preprocessing_function_batching(
         "max_batches":max_batches,
         "weights_dict":weights_dict,
         "volumes_dict":volumes_dict,
-        "num_aisles":num_aisles,
-        "num_bays":num_bays,
-        "cage_weight_capacity":cage_weight_capacity,
-        "cage_volume_capacity":cage_volume_capacity,
-        "fill_percent":fill_percent,
+        "warehouse_data":warehouse_data,
+        "cage_data":cage_data,
         "cages_per_batch":cages_per_batch,
-        "between_aisle_dist":between_aisle_dist,
-        "between_bay_dist":between_bay_dist
     }
     
     return instance

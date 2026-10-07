@@ -3,10 +3,10 @@ import random
 import pandas as pd
 import numpy as np
 from itertools import product
+# error from below line
 from slap.utils.model_preprocessing_function import preprocessing_function_batching
-from slap.eval.evaluation import calculate_distance_all_trips
-from slap.models.batching_model import batching_model
-
+from slap.eval.evaluation import calculate_distance_all_batches
+from slap.models.batching_model_revised import batching_model
 
 pick_data = pd.read_csv("tests/pick_data.csv")
 solution_allocation = pd.read_csv("tests/solution_allocation.csv")
@@ -86,7 +86,7 @@ def test_model_outputs(
 
     # ----- check distances -------------------------------------------------------------------
     
-    distance_eval, dist_by_trip = calculate_distance_all_trips(
+    distance_eval, dist_by_trip = calculate_distance_all_batches(
         trips = trips_dict,
         aisle_assignments=instance["aisle_assignments"],
         between_aisle_dist=instance["between_aisle_dist"],

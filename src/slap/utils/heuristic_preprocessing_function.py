@@ -15,7 +15,7 @@ def preprocessing_function_heuristic(
     cage_vol_capacity:float, 
     num_prods:int, 
     num_stores:int, 
-    fill_percent:float=0.85, 
+    fill_frac:float=0.85, 
     cages_per_trip:int=5, 
     look_ahead:int=75
 ):
@@ -59,7 +59,7 @@ def preprocessing_function_heuristic(
         "num_bays":num_bays,
         "cage_weight_capacity":cage_weight_capacity,
         "cage_vol_capacity":cage_vol_capacity,
-        "fill_percent":fill_percent,
+        "fill_frac":fill_frac,
         "cages_per_trip":cages_per_trip,
         "look_ahead":look_ahead
     }

@@ -1,7 +1,7 @@
 import math
 import gurobipy as gp
 from gurobipy import GRB
-from slap.comp_tests.dataclasses import WarehouseData
+from slap.utils.dataclasses import WarehouseData
 
 
 def scatter_frequency_assignments(
@@ -91,9 +91,10 @@ def aisle_directionality_assignments(
         if a%2==1
     ]
 
-    P = prods
+    P = set(prods)
 
     model = gp.Model("aisle_directionality_assignments")
+    model.Params.OutputFlag = 0
 
     x = model.addVars(A, P, vtype=GRB.BINARY, name="x")
     z = model.addVars(P, vtype=GRB.BINARY, name="z") # auxiliary variable to ensure either all assigned to odd or even-indexed aisles

@@ -1,5 +1,5 @@
 from numpy import floor
-from slap.comp_tests.dataclasses import (
+from slap.utils.dataclasses import (
     CageData
 )
 

@@ -4,7 +4,7 @@ from src.slap.utils.heuristic_helpers import (
     add_product, 
     open_new_cage
 )
-from slap.comp_tests.dataclasses import (
+from slap.utils.dataclasses import (
     WarehouseData,
     CageData
 )
@@ -36,8 +36,8 @@ def heuristic_batching(
     """
 
     # adjust capacities by fill-percent assumption
-    cage_weight_capacity = cage_data.fill_percent*cage_weight_capacity
-    cage_vol_capacity = cage_data.fill_percent*cage_vol_capacity
+    cage_weight_capacity = cage_data.fill_frac*cage_weight_capacity
+    cage_vol_capacity = cage_data.fill_frac*cage_vol_capacity
 
     # create the slot ordering
     slots = []

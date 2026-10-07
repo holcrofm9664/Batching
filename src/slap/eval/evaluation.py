@@ -1,7 +1,7 @@
 from itertools import product
 from typing import Any
 import numpy as np
-from slap.comp_tests.dataclasses import WarehouseData
+from slap.utils.dataclasses import WarehouseData
 
 def calculate_distance_one_batch(
     aisle_assignments:dict, 
