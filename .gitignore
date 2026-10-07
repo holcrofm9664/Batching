@@ -11,3 +11,5 @@ dist/
 build/
 notebook.ipynb
 data/
+tests/pick_data.csv
+tests/solution_allocation.csv
