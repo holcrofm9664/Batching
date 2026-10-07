@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "slap"
 version = "0.1.3"
-description = "A package containing functions for optimising the storage location of products in a directional, single-block warehouse"
+description = "A package containing functions for optimising the batching of products in a directional, single-block warehouse"
 readme = "README.md"
 requires-python = ">=3.10.12"
 license = { text = "Apache 2.0" }
@@ -34,7 +34,7 @@ dev = [
 ]
 
 [tool.setuptools]
-package-dir = { "" = "src" }
+package-dir = { "" = "src/slap" }
 
 [tool.setuptools.packages.find]
 where = ["src"]
