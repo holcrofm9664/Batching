@@ -3,11 +3,7 @@ import numpy as np
 import random
 import math
 from ast import literal_eval
-from slap.utils.dataclasses import (
-    OrdersData,
-    CageData,
-    WarehouseData
-)
+from slap.utils.dataclasses import OrdersData, CageData, WarehouseData
 
 def clean_dataframes(
     pick_data:pd.DataFrame,
@@ -41,14 +37,6 @@ def clean_dataframes(
         "pick_qty":"qty_to_pick",
         "Aisle":"aisle"
     }
-    # extract the dataframes, so we don't modify the dataclass
-    pick_data, solution_allocation = pick_data, solution_allocation
-
-    # ensure slot_pair is a tuple
-    solution_allocation["Slot_Pair"] = (
-        solution_allocation["Slot_Pair"].
-        apply(literal_eval)
-    )
 
     # rename columns in both dataframes
     pick_data = (
@@ -63,6 +51,12 @@ def clean_dataframes(
 
     # drop NA values from the solution_allocation dataframe
     solution_allocation = solution_allocation.dropna()
+
+    # ensure slot_pair is a tuple
+    solution_allocation["Slot_Pair"] = (
+        solution_allocation["Slot_Pair"].
+        apply(literal_eval)
+    )
 
     return pick_data, solution_allocation
 
@@ -126,10 +120,10 @@ def weights_and_volumes(
     # construct the weights and volumes dictionaries
     df = (
         solution_allocation[
-            solution_allocation["tpnd"].isin(prod_subset)
+            solution_allocation["product"].isin(prod_subset)
         ]
-        .drop_duplicates(subset="tpnd")
-        .set_index("tpnd")
+        .drop_duplicates(subset="product")
+        .set_index("product")
     )
 
     weight_dict = df["weight"].to_dict()
@@ -141,10 +135,7 @@ def weights_and_volumes(
 def create_orders(
     pick_data:pd.DataFrame, 
     prod_subset:list[int], 
-    orders_data:OrdersData, 
-    volume_dict:dict[int,float], 
-    weight_dict:dict[int,float], 
-    cage_data:CageData,
+    orders_data:OrdersData
 ) -> list[list[int]]:
     """Creates a set of synthetic orders.
 
@@ -186,14 +177,7 @@ def create_orders(
             k=order_size
         )
 
-        order_weight = sum([weight_dict[k] for k in order])
-        order_volume = sum([volume_dict[k] for k in order])
-
-        if (
-            order_weight < cage_data.cage_weight_capacity*cage_data.fill_frac 
-            and order_volume < cage_data.cage_volume_capacity*cage_data.fill_frac
-        ):
-            orders.append(order)
+        orders.append(order)
 
     return orders, product_demands_dict
 
@@ -220,9 +204,6 @@ def create_max_batches(
         The maximum allowed number of batches.
     """
 
-    cage_weight_capacity = cage_weight_capacity*cage_data.fill_frac
-    cage_volume_capacity = cage_volume_capacity*cage_data.fill_frac
-
     W = {
         o: sum(weights_dict[prod] for prod in order)
         for o, order in enumerate(orders)
@@ -239,8 +220,8 @@ def create_max_batches(
         w, v = W[order], V[order]
 
         if (
-            current_weight + w <= cage_weight_capacity
-            and current_volume + v <= cage_volume_capacity
+            current_weight + w <= cage_data.cage_weight_capacity
+            and current_volume + v <= cage_data.cage_volume_capacity
         ):
             current_weight += w
             current_volume += v
