@@ -63,9 +63,10 @@ def preprocessing_function_batching(
     )
     
     aisle_assignments = create_aisle_assignments(
-        prod_subset=prod_subset,
-        warehouse_data=warehouse_data,
         solution_allocation=solution_allocation,
+        warehouse_data=warehouse_data,
+        prod_subset=prod_subset,
+        num_zones=warehouse_data.num_zones,
         product_demands_dict=product_demands_dict,
     )
 
