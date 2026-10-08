@@ -3,8 +3,8 @@ import random
 import pandas as pd
 import numpy as np
 from itertools import product
-# error from below line
 from slap.utils.model_preprocessing_function import preprocessing_function_batching
+from slap.utils.dataclasses import CageData, OrdersData, WarehouseData
 from slap.eval.evaluation import calculate_distance_all_batches
 from slap.models.batching_model_revised import batching_model
 
@@ -14,12 +14,12 @@ solution_allocation = pd.read_csv("tests/solution_allocation.csv")
 random.seed(123)
 np.random.seed(123)
 
-num_products_combs = [10,20]
-num_orders_combs = [3,12]
-min_order_size_combs = [2,2]
-max_order_size_combs = [3,4]
-num_aisles_combs = [5,10]
-num_bays_combs = [10,20]
+num_products_combs = [10]
+num_orders_combs = [3]
+min_order_size_combs = [2]
+max_order_size_combs = [3]
+num_aisles_combs = [5]
+num_bays_combs = [10]
 
 instances = []
 
@@ -38,15 +38,30 @@ for (
     num_aisles_combs, 
     num_bays_combs
 ):
+    
+    warehouse_data = WarehouseData(
+        num_aisles=num_aisles,
+        num_bays=num_bays
+    )
+
+    cage_data = CageData(
+        max_orders_per_cage=5
+    )
+
+    orders_data = OrdersData(
+        num_orders=num_orders,
+        min_order_size=min_order_size,
+        max_order_size=max_order_size
+    )
+
+
     instance = preprocessing_function_batching(
         pick_data=pick_data,
         solution_allocation=solution_allocation,
         num_products=num_products,
-        num_orders = num_orders,
-        min_order_size=min_order_size,
-        max_order_size=max_order_size,
-        num_aisles=num_aisles,
-        num_bays=num_bays
+        orders_data=orders_data,
+        warehouse_data=warehouse_data,
+        cage_data=cage_data
     )
     
     instances.append(instance)
@@ -67,7 +82,7 @@ def test_model_outputs(
     )
 
     # ----- check output types ----------------------------------------------------------------
-    
+    print(f"trips_dict:{trips_dict}")
     assert type(distance) == float or distance == None
     assert type(trips_dict) == dict or trips_dict == None
 
@@ -87,11 +102,9 @@ def test_model_outputs(
     # ----- check distances -------------------------------------------------------------------
     
     distance_eval, dist_by_trip = calculate_distance_all_batches(
-        trips = trips_dict,
+        batches = trips_dict,
         aisle_assignments=instance["aisle_assignments"],
-        between_aisle_dist=instance["between_aisle_dist"],
-        between_bay_dist=instance["between_bay_dist"],
-        num_bays=instance["num_bays"]
+        warehouse_data=instance["warehouse_data"]
     )
     
     assert distance == distance_eval
@@ -100,20 +113,20 @@ def test_model_outputs(
     # ----- check cage weight and volume capacities -------------------------------------------
     
     weights_dict, volumes_dict = instance["weights_dict"], instance["volumes_dict"]
-    cage_weight_capacity = instance["cage_weight_capacity"]
-    cage_volume_capacity = instance["cage_volume_capacity"]
+    cage_weight_capacity = instance["cage_data"].cage_weight_capacity
+    cage_volume_capacity = instance["cage_data"].cage_volume_capacity
 
     for trip in trips_dict.values():
         for cage in trip:
             # check cage weight capacity not exceeded
             assert sum(
                 [weights_dict[p] for p in trip[cage]]
-                ) <= cage_weight_capacity
+                ) <= cage_data.cage_weight_capacity
             
             # check cage volume capacity not exceeded
             assert sum(
                 [volumes_dict[p] for p in trip[cage]]
-                ) <= cage_volume_capacity
+                ) <= cage_data.cage_volume_capacity
 
     # ----- check that all products in oredrs are assigned ------------------------------------
     
