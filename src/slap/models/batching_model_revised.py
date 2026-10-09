@@ -53,12 +53,33 @@ def batching_model(
         for prod in all_prods:
             dem_dict[(order_num,prod)] = len([p for p in order if p == prod])
 
+    # create the m dict (max of each product from each order that can be assigned to one cage)
+    m_dict = {}
+
+    for (o,k) in dem_dict.keys():
+        m = min(dem_dict[(o,k)], cage_weight_capacity//W[k], cage_volume_capacity//V[k])
+        m_dict[(o,k)] = m
+    
+
+    
     # the sets
     P = set(prod for aisle in aisle_assignments for prod in aisle_assignments[aisle]) # the set of products
     T = range(1, max_batches + 1) # set of batches
     O = orders.keys() # set of orders (unbreakable groups of orders)
     A = range(warehouse_data.num_aisles) # set of aisles
     C = range(1, cages_per_batch + 1) # the set of cages
+
+    # create the order constituents dictionary 
+    order_const_dict = {}
+    for o in O:
+        prods = [k for k in P if (o,k) in dem_dict]
+        order_const_dict[o] = prods
+
+    # create R_k, the set of aisles k is stored in
+    R = {}
+    for k in P:
+        aisles = [a for a in A if A_dict[(k,a)] == 1]
+        R[k] = aisles
 
     # if aisle a contains product k
     A_dict = {
@@ -82,10 +103,10 @@ def batching_model(
     model = gp.Model("batching_strict_s")
 
     zp_combs = [
-        (a,k,t)
-        for a in A 
-        for k in P 
+        (k,t,a)
+        for k in P
         for t in T
+        for a in A 
         if A_dict[(k,a)]==1
     ]
     
@@ -98,21 +119,19 @@ def batching_model(
     ]
 
     yp_combs = [
-        (k,o,t,c)
-        for k in P
+        (o,k,t,c)
         for o in O
+        for k in order_const_dict[o]
         for t in T
         for c in C
-        if B_dict[(o,k)] == 1
     ]
 
     y_combs = [
-        (k,o,t,c)
-        for k in P
+        (o,k,t,c)
         for o in O
+        for k in order_const_dict[o]
         for t in T
         for c in C
-        if B_dict[(o,k)] == 1
     ]
 
     A_even = [
@@ -131,6 +150,7 @@ def batching_model(
     y = model.addVars(y_combs, vtype=GRB.INTEGER, name="y") # the quantity of product k from order o assigned to cage c of trip t
     yp = model.addVars(yp_combs, vtype = GRB.BINARY, name = "yp") # if any products of type k from order o are assigned to cage c of batch t
     Y = model.addVars(O, T, C, vtype=GRB.BINARY, name = "Y") # if any products from order o are assigned to cage c of trip t
+    YP = model.addVars(P, T, vtype=GRB.BINARY, name = "YP") # if any of product k assigned to batch t
     z = model.addVars(T, A, vtype = GRB.BINARY, name = "z") # if batch t visits aisle a
     zp = model.addVars(zp_combs, vtype = GRB.BINARY, name="zp") # if products of type k are picked from aisle a for order o
     f = model.addVars(T, A, vtype = GRB.BINARY, name = "f") # if aisle a is the first aisle with a pick for batch t
@@ -147,22 +167,21 @@ def batching_model(
     # the constraints
 
     for o in O:
-        for k in P:
-            if B_dict[(o,k)] == 1:
-                model.addConstr(
-                    gp.quicksum(y[k,o,t,c] for c in C for t in T) == dem_dict[(o,k)],
-                    name = f"assign_all_units_of_SKU_{k}_from_order_{o}"
-                )
+        for k in order_const_dict[o]:
+            model.addConstr(
+                gp.quicksum(y[o,k,t,c] for c in C for t in T) == dem_dict[(o,k)],
+                name = f"assign_all_units_of_SKU_{k}_from_order_{o}"
+            )
     
-    for k, o, t, c in yp_combs:
+    for o, k, t, c in yp_combs:
         model.addConstr(
-            Y[o,t,c] >= yp[k,o,t,c],
+            Y[o,t,c] >= yp[o,k,t,c],
             name = f"define_Y"
         )
 
-        tight_M = max([k for k in dem_dict.values()])
+        m = m_dict[(o,k)]
         model.addConstr(
-            yp[k,o,t,c] >= y[k,o,t,c] / tight_M,
+            y[o,k,t,c] <= m*yp[o,k,t,c],
             name = f"flag_yp_when_product_{k}_from_order_{o}_assigned_to_cage_{c}_of_trip_{t}"
         )
 
@@ -206,29 +225,6 @@ def batching_model(
             gp.quicksum(Y[o,t,c] for o in O for c in C) + E[t] >= 1,
             name = f"if_no_products_assigned_to_trip_{t}_then_E_{t}_equals_1"
         )
-        
-        for o in O:
-            for c in C:
-                model.addConstr(
-                    E[t] <= 1 - Y[o,t,c],
-                    name = f"set_E_to_0_if_batch_{t}_is_non-empty"
-                )
-
-        for c in C:
-            model.addConstr(
-                gp.quicksum(y[k,o,t,c]*W[k] for o in O for k in P if B_dict[(o,k)]==1) <= cage_weight_capacity,
-                name = f"cage_weight_capacity"
-            )
-
-            model.addConstr(
-                gp.quicksum(y[k,o,t,c]*V[k] for o in O for k in P if B_dict[(o,k)]==1) <= cage_volume_capacity,
-                name = f"cage_volume_capacity"
-            )
-
-            model.addConstr(
-                gp.quicksum(Y[o,t,c] for o in O) <= cage_data.max_orders_per_cage,
-                name = f"permit_up_to_{cage_data.max_orders_per_cage}_orders_assigned_to_cage_{c}_of_trip_{t}"
-            )
 
         model.addConstr(
             dist[t] == L * (gp.quicksum(z[t,a] for a in A) + gp.quicksum(p[t,a,b] for a in A for b in A if b > a if (t,a,b) in p) + F[t] + Q[t] - E[t]) 
@@ -236,6 +232,31 @@ def batching_model(
                     + 2 * M * Pen[t],
             name = f"the_distance_for_trip_{t}"
         )
+        
+    for o in O:
+        for t in T:    
+            for c in C:
+                model.addConstr(
+                    E[t] <= 1 - Y[o,t,c],
+                    name = f"set_E_to_0_if_batch_{t}_is_non-empty"
+                )
+
+    for t in T:
+        for c in C:
+            model.addConstr(
+                gp.quicksum(y[o,k,t,c]*W[k] for o in O for k in order_const_dict[o]) <= cage_weight_capacity,
+                name = f"cage_weight_capacity"
+            )
+
+            model.addConstr(
+                gp.quicksum(y[o,k,t,c]*V[k] for o in O for k in order_const_dict[o]) <= cage_volume_capacity,
+                name = f"cage_volume_capacity"
+            )
+
+            model.addConstr(
+                gp.quicksum(Y[o,t,c] for o in O) <= cage_data.max_orders_per_cage,
+                name = f"permit_up_to_{cage_data.max_orders_per_cage}_orders_assigned_to_cage_{c}_of_trip_{t}"
+            )
 
     for t, a, b in p_combs:
         if (b-a)%2 == 0:
@@ -271,17 +292,24 @@ def batching_model(
             for a,k,t in zp_combs:
                 if B_dict[(o,k)] == 1:
                     model.addConstr(
-                        z[t,a] >= yp[k,o,t,c] + zp[a,k,t] - 1,
+                        z[t,a] >= yp[o,k,t,c] + zp[a,k,t] - 1,
                         name = f"if_product_{k}_from_order_{o}_assigned_to_cage_{c}_of_trip_{t}_and_we_pick_that_product_from_aisle_{a}_then_that_trip_must_enter_that_aisle"
                     )
-
-    for a,k,t in zp_combs:
-        model.addConstr(
-            gp.quicksum(zp[a,k,t] for a in A if (a,k,t) in zp) == 1,
-            name = f"pick_product_{k}_from_exactly_one_aisle_for_order_{o}"
-        )
+    for k in P:
+        for t in T:
+            model.addGenConstrIndicator(
+                YP[k,t], 1, gp.quicksum(zp[k,t,a] for a in R[k]),
+                name = f"if_product_{k}_assigned_to_batch_{t}_then_that_batch_must_pick_that_product"
+            )
     
     for t in T:
+        for c in C:
+            for o in O:
+                for k in order_const_dict[o]:
+                    model.addConstr(
+                        YP[k,t] >= yp[o,k,t,c],
+                        name = f"flag_YP_if_batch_{t}_contains_any_units_of_product_{k}"
+                    )
         if t > 1:
             model.addConstr(
                 dist[t] >= dist[t-1],
@@ -291,7 +319,7 @@ def batching_model(
         for c in C:
             if c > 1:
                 model.addConstr(
-                    gp.quicksum(W[k]*y[k,o,t,c] for o in O for k in P if B_dict[(o,k)] == 1) <= gp.quicksum(W[k]*y[k,o,t,c-1] for o in O for k in P if B_dict[(o,k)] == 1),
+                    gp.quicksum(W[k]*y[o,k,t,c] for o in O for k in order_const_dict[o]) <= gp.quicksum(W[k]*y[o,k,t,c-1] for o in O for k in order_const_dict[o]),
                     name = f"cage_symmetry_breaking_cage_{c}_trip_t"
                 )
 
@@ -319,9 +347,9 @@ def batching_model(
             for c in cages:
                 products = []
 
-                for k, o, t2, c2 in y_combs:
-                    if t2 == t and c2 == c and y[k, o, t, c].X > 0:
-                        products.extend([k] * int(y[k, o, t, c].X))
+                for k,o,t2,c2 in y_combs:
+                    if t2 == t and c2 == c and y[o,k,t,c].X > 0:
+                        products.extend([k] * int(y[k,o,t,c].X))
 
                 trip_dict[f"cage {c}"] = products
 
