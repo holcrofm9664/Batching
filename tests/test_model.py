@@ -8,6 +8,31 @@ from slap.utils.dataclasses import CageData, OrdersData, WarehouseData
 from slap.eval.evaluation import calculate_distance_all_batches
 from slap.models.batching_model_revised import batching_model
 
+# create a trivial instance to test first
+
+orders_trivial = [[1]]
+aisle_assignments_trivial = {0:[1],
+                             1:[]}
+max_batches_trivial = 1
+weights_dict_trivial = {1:0.1}
+volumes_dict_trivial = {1:0.1}
+warehouse_data_trivial = WarehouseData(
+    num_aisles=2,
+    num_bays=2)
+cage_data_trivial = CageData()
+cages_per_batch_trivial=5
+
+instance_trivial = {
+    "orders":orders_trivial,
+    "aisle_assignments":aisle_assignments_trivial,
+    "max_batches":max_batches_trivial,
+    "weights_dict":weights_dict_trivial,
+    "volumes_dict":volumes_dict_trivial,
+    "warehouse_data":warehouse_data_trivial,
+    "cage_data":cage_data_trivial,
+    "cages_per_batch":cages_per_batch_trivial
+}
+
 pick_data = pd.read_csv("tests/pick_data.csv")
 solution_allocation = pd.read_csv("tests/solution_allocation.csv")
 
@@ -21,7 +46,7 @@ max_order_size_combs = [3]
 num_aisles_combs = [5]
 num_bays_combs = [10]
 
-instances = []
+instances = [instance_trivial]
 
 for (
     num_products, 
@@ -66,7 +91,6 @@ for (
     
     instances.append(instance)
 
-
 @pytest.mark.parametrize(
     "instance",
     
@@ -81,8 +105,22 @@ def test_model_outputs(
         **instance
     )
 
+    # check trivial instance
+    if instance == {
+    "orders":orders_trivial,
+    "aisle_assignments":aisle_assignments_trivial,
+    "max_batches":max_batches_trivial,
+    "weights_dict":weights_dict_trivial,
+    "volumes_dict":volumes_dict_trivial,
+    "warehouse_data":warehouse_data_trivial,
+    "cage_data":cage_data_trivial,
+    "cages_per_batch":cages_per_batch_trivial
+    }:
+
+        assert len(trips_dict) == 1
+        assert distance == 8
+
     # ----- check output types ----------------------------------------------------------------
-    print(f"trips_dict:{trips_dict}")
     assert type(distance) == float or distance == None
     assert type(trips_dict) == dict or trips_dict == None
 
