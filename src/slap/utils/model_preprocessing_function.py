@@ -47,10 +47,7 @@ def preprocessing_function_batching(
     orders, product_demands_dict = create_orders(
         pick_data=pick_data,
         prod_subset=prod_subset,
-        orders_data=orders_data,
-        volume_dict=volumes_dict,
-        weight_dict=weights_dict,
-        cage_data=cage_data
+        orders_data=orders_data
     )
 
     max_batches = create_max_batches(

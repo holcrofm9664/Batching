@@ -77,15 +77,14 @@ def sample_products(
         All the products and the products that have been sampled.
     """
 
-    pick_data, solution_allocation = pick_data, solution_allocation
-
     all_prods = solution_allocation["product"].unique()
+    
+    unit_qty_dict = dict(pick_data.groupby("product")["qty_to_pick"].sum())
 
-    if num_prods >= len(all_prods):
+    if num_prods >= len(unit_qty_dict):
         print(f"Too many products requested. Returning all products")
         return list(int(x) for x in all_prods), list(int(x) for x in all_prods)
 
-    unit_qty_dict = dict(pick_data.groupby("product")["qty_to_pick"].sum())
 
     items, frequencies = list(unit_qty_dict.keys()), list(unit_qty_dict.values())
 
