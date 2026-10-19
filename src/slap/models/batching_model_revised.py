@@ -60,8 +60,6 @@ def batching_model(
         m = min(dem_dict[(o,k)], cage_weight_capacity//W[k], cage_volume_capacity//V[k])
         m_dict[(o,k)] = m
     
-
-    
     # the sets
     P = set(prod for aisle in aisle_assignments for prod in aisle_assignments[aisle]) # the set of products
     T = range(1, max_batches + 1) # set of batches
@@ -75,18 +73,18 @@ def batching_model(
         prods = [k for k in P if (o,k) in dem_dict]
         order_const_dict[o] = prods
 
-    # create R_k, the set of aisles k is stored in
-    R = {}
-    for k in P:
-        aisles = [a for a in A if A_dict[(k,a)] == 1]
-        R[k] = aisles
-
     # if aisle a contains product k
     A_dict = {
         (k, a): int(k in aisle_assignments[a])
         for k in P
         for a in A
     }
+
+    # create R_k, the set of aisles k is stored in
+    R = {}
+    for k in P:
+        aisles = [a for a in A if A_dict[(k,a)] == 1]
+        R[k] = aisles
 
     # if order o contains product k
     B_dict = {
@@ -289,16 +287,16 @@ def batching_model(
 
     for o in O:
         for c in C:
-            for a,k,t in zp_combs:
+            for k,t,a in zp_combs:
                 if B_dict[(o,k)] == 1:
                     model.addConstr(
-                        z[t,a] >= yp[o,k,t,c] + zp[a,k,t] - 1,
+                        z[t,a] >= yp[o,k,t,c] + zp[k,t,a] - 1,
                         name = f"if_product_{k}_from_order_{o}_assigned_to_cage_{c}_of_trip_{t}_and_we_pick_that_product_from_aisle_{a}_then_that_trip_must_enter_that_aisle"
                     )
     for k in P:
         for t in T:
-            model.addGenConstrIndicator(
-                YP[k,t], 1, gp.quicksum(zp[k,t,a] for a in R[k]),
+            model.addConstr(
+                YP[k,t] == gp.quicksum(zp[k,t,a] for a in R[k]),
                 name = f"if_product_{k}_assigned_to_batch_{t}_then_that_batch_must_pick_that_product"
             )
     
@@ -347,9 +345,11 @@ def batching_model(
             for c in cages:
                 products = []
 
-                for k,o,t2,c2 in y_combs:
-                    if t2 == t and c2 == c and y[o,k,t,c].X > 0:
-                        products.extend([k] * int(y[k,o,t,c].X))
+                for o in O:
+                    for k in P:
+                        if (o,k,t,c) in y_combs:
+                            if y[o,k,t,c].X > 0:
+                                products.extend([k] * int(y[o,k,t,c].X))
 
                 trip_dict[f"cage {c}"] = products
 
