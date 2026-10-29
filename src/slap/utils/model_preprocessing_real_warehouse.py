@@ -1,5 +1,5 @@
 import pandas as pd
-from slap.utils.model_preprocessing_helpers import (
+from slap.utils.helpers import (
     clean_dataframes, 
     weights_and_volumes, 
     create_orders, 
@@ -12,27 +12,37 @@ from slap.utils.dataclasses import (
     WarehouseData
 )
 
-def preprocessing_function_batching(
+def batching_preprocessing(
     pick_data:pd.DataFrame, 
-    solution_allocation:pd.DataFrame, 
-    num_products:int, 
+    assignments:pd.DataFrame, 
     orders_data:OrdersData,  
     cage_data:CageData,
+    time_limit:int,
     cages_per_batch:int=5, 
     buffer:float=0.25
 ) -> tuple[list[list[int]], dict[int,list[int]], int, dict[int,float], dict[int,float], int, int, int, int, float, int, int, int]:
+    """Creates an instance for the batching model.
 
+    Args:
+        pick_data: Data frame containing pick data.
+        assignments: Data frame containing assignments.
+        max_orders_per_cage: Maximum-permitted orders assigned to each cage.
+        num_samples: Number of orders sampled for the instance.
+
+    Returns:
+        An instance for the batching heuristic.
+    """
     # clean pick data and solution allocation dataframes
-    pick_data, solution_allocation = clean_dataframes(
+    pick_data, assignments = clean_dataframes(
         pick_data=pick_data,
-        solution_allocation=solution_allocation
+        assignments=assignments
     )
 
-    all_products = solution_allocation["product"].unique()
+    all_products = assignments["tpnd"].unique()
 
     # get the product weights and volumes
     weights_dict, volumes_dict = weights_and_volumes(
-        solution_allocation=solution_allocation,
+        assignments=assignments,
         prod_subset=all_products
     )
 
@@ -50,11 +60,11 @@ def preprocessing_function_batching(
         buffer=buffer,
         cages_per_batch=cages_per_batch
     )
-    grouped = solution_allocation.groupby("aisle",as_index=False)
+    grouped = assignments.groupby("aisle",as_index=False)
 
     aisle_assignments_df = (
         grouped.agg(
-            products_list = ("product",list)
+            products_list = ("tpnd",list)
         )
     )
 
@@ -73,6 +83,7 @@ def preprocessing_function_batching(
         "volumes_dict":volumes_dict,
         "warehouse_data":warehouse_data,
         "cage_data":cage_data,
+        "time_limit":time_limit,
         "cages_per_batch":cages_per_batch,
     }
     
