@@ -1,238 +1,89 @@
-from collections import defaultdict
-from src.slap.utils.heuristic_helpers import (
-    quantity_that_fits, 
-    add_product, 
-    open_new_cage
-)
-from slap.utils.dataclasses import (
-    WarehouseData,
-    CageData
-)
+from collections import deque
+from itertools import product
+import math
+from slap.utils.dataclasses import CageData
 
-def heuristic_batching(
-    shop_prod_dem:dict[tuple[int,int],int],
-    stored_product:dict[tuple,tuple[int,int]],
-    weights_dict:dict[int,float],
-    vol_dict:dict[int,float],
-    warehouse_data:WarehouseData,
-    cage_data:CageData,
-    cages_per_trip:int=5,
-    look_ahead:int=75,
-) -> dict[int,dict[int,list[int]]]:
-    """Create a set of batches using the current heuristic.
+def batching_heuristic(
+        orders:dict[int,list[int]],
+        weights_dict:dict[int,float],
+        volumes_dict:dict[int,float],
+        cage_data:CageData,
+        prod_assignments:dict[int:tuple[int,int]],
+        cages_per_batch:int=5
+):
+    
+    sol_prods = {x for x in prod_assignments.keys()}
 
-    Args:
-        shop_prod_dem: Demand for each shop-product pair.
-        stored_product: Products stored in each (aisle,bay) pair.
-        weights_dict: Product weights.
-        vol_dict: Product volumes.
-        warehouse_data: Warehouse-related data.
-        cage_data: Cage-related data.
-        cages_per_trip: Number of cages in each trip.
-        look_ahead: Number of slots in the look-ahead.
+    aisles = [x for x in range(70)]
+    bays = [x+1 for x in range(60)]
 
-    Returns:
-        The trips.
-    """
-
-    # adjust capacities by fill-percent assumption
-    cage_weight_capacity = cage_data.fill_frac*cage_weight_capacity
-    cage_vol_capacity = cage_data.fill_frac*cage_vol_capacity
-
-    # create the slot ordering
-    slots = []
-
-    for aisle in range(warehouse_data.num_aisles):
-
-        bays = (
-            range(warehouse_data.num_bays)
-            if aisle % 2 == 0
-            else reversed(range(warehouse_data.num_bays))
+    slot_idx = {}
+    for aisle,bay in product(aisles,bays):
+        slot_idx[(aisle,bay)] = (
+            60*aisle + bay if aisle % 2 == 0
+            else 60*aisle + (60-bay)
         )
 
-        slots.extend((aisle, bay) for bay in bays)
+    prod_idx = {k:slot_idx[prod_assignments[k]] for k in sol_prods}
 
-    # ------------------------------------------------------------
-    # 2. Check storage locations and identify stored products
-    # ------------------------------------------------------------
+    cage_idx = 1
 
-    stored_skus = set()
+    cages, cage_orders = {cage_idx:[]}, {cage_idx:[]}
+    cage_weights, cage_volumes = {cage_idx:0}, {cage_idx,0}
 
-    for location in slots:
-        if location in stored_product:
-            products = tuple(stored_product[location])
-            stored_skus.update(products)
+    prods_in_orders = [prod for order in orders.values() for prod in order]
 
-    # ------------------------------------------------------------
-    # 3. Convert demand to {shop: {product: demand}}
-    # ------------------------------------------------------------
+    prods_sorted = deque(sorted(prods_in_orders,key = lambda x:prod_idx[x]))
 
-    demand_by_shop = defaultdict(dict)
-
-    for (shop, product), demand in shop_prod_dem.items():
-
-        if not isinstance(demand, int) or isinstance(demand, bool) or demand < 0:
-            raise ValueError(
-                f"Demand for shop {shop}, product {product} "
-                f"must be a non-negative integer."
-            )
-
-        if demand == 0:
-            continue
-
-        if product not in stored_skus:
-            raise ValueError(
-                f"Product {product}, demanded by shop {shop}, "
-                "is not stored in the warehouse."
-            )
-
-        if product not in weights_dict:
-            raise KeyError(f"No weight given for product {product}.")
-
-        if product not in vol_dict:
-            raise KeyError(f"No volume given for product {product}.")
-
-        if (
-            weights_dict[product] > cage_weight_capacity
-            or vol_dict[product] > cage_vol_capacity
-        ):
-            raise ValueError(
-                f"One unit of product {product} cannot fit "
-                "in an empty cage."
-            )
-
-        demand_by_shop[shop][product] = demand
-
-    if not demand_by_shop:
-        return {}
-    
-    # ------------------------------------------------------------
-    # 4. Initialise first trip/cage
-    # ------------------------------------------------------------
-
-    trip, cage = 1, 1
-
-    trips = {trip: {cage: []}}
-
-    c_weight, c_vol = 0.0, 0.0
-
-    # ------------------------------------------------------------
-    # 5. Process each shop in turn
-    # ------------------------------------------------------------
-
-    for shop in sorted(demand_by_shop):
-
-        shop_dem = demand_by_shop[shop]
-
-        slot = 0
-
-        while shop_dem:
-
-            if slot >= len(slots):
-                raise RuntimeError(
-                    f"Could not satisfy all demand for shop {shop}. "
-                    f"Remaining demand: {shop_dem}"
-                )
-
-            location = slots[slot]
-            if location in stored_product:
-                products = tuple(stored_product[location])
-
-                blocked = False
-
-                # consider both products in the slot
-                for product in products:
-                    if product not in shop_dem:
-                        continue
-
-                    quantity = quantity_that_fits(
-                        product=product,
-                        demand=shop_dem[product],
-                        weights_dict=weights_dict,
-                        vol_dict=vol_dict,
-                        cage_weight_capacity=cage_weight_capacity,
-                        cage_vol_capacity=cage_vol_capacity,
-                        c_weight=c_weight,
-                        c_vol=c_vol
-                    )
-
-                    c_weight, c_vol = add_product(
-                        product=product,
-                        quantity=quantity,
-                        shop_dem=shop_dem,
-                        c_weight=c_weight,
-                        c_vol=c_vol,
-                        trips=trips,
-                        trip=trip,
-                        cage=cage,
-                        weights_dict=weights_dict,
-                        vol_dict=vol_dict,
-                    )
-
-                    # if a product is still in shop_dem then we couldn't fit all of it in
-                    if product in shop_dem:
-                        blocked = True
-
-                # if we fit everything from this slot in
-                if not blocked:
-
-                    slot += 1
+    for prod in prods_sorted:
+        for order in [order for order in orders if prod in orders[order]]:
+            placed = False
+            for cage in cages:
+                if (
+                    order in cage_orders[cage]
+                    and cage_weights[cage] + weights_dict[prod] <= cage_data.cage_weight_capacity
+                    and cage_volumes[cage] + volumes_dict[prod] <= cage_data.cage_volume_capacity
+                ):
+                    cages[cage].append(prod)
+                    cage_weights[cage] += weights_dict[prod]
+                    cage_volumes[cage] += volumes_dict[prod]
+                    prods_sorted.popleft()
+                    orders[order].remove(prod)
+                    placed = True
+                    break
+                elif (
+                    len(cage_orders[cage]) < cage_data.max_orders_per_cage
+                    and cage_weights[cage] + weights_dict[prod] <= cage_data.cage_weight_capacity
+                    and cage_volumes[cage] + volumes_dict[prod] <= cage_data.cage_volume_capacity
+                ):
+                    cage_orders[cage].append(order)
+                    cages[cage].append(prod)
+                    cage_weights[cage] += weights_dict[prod]
+                    cage_volumes[cage] += volumes_dict[prod]
+                    prods_sorted.popleft()
+                    orders[order].remove(prod)
+                    placed = True
+                    break
+                else:
                     continue
 
-                # the look-ahead aspect
-                stop = min(slot + 1 + look_ahead, len(slots))
+            if placed == False:
+                cage_idx += 1
+                cages[cage_idx] = [prod]
+                cage_orders[cage_idx] = [order]
+                cage_weights[cage_idx] = weights_dict[prod]
+                cage_volumes[cage_idx] = volumes_dict[prod]
+                prods_sorted.popleft()
+                orders[order].remove(prod)
+                placed = True
+                break
 
-                for next_slot in range(slot + 1, stop):
+    # creating the batches
 
-                    next_location = slots[next_slot]
-                    if next_location in stored_product:
-                        next_products = tuple(stored_product[next_location])
+    num_batches = math.ceil(len(cages)/cages_per_batch)
+    batches = {}
+    for b in range(num_batches):
+        batches[b] = {k:v for k,v in cages.items() if k in range(b-1,b+cages_per_batch)}
 
-                        # consider both products at each look-ahead slot.
-                        for next_product in next_products:
-
-                            if next_product not in shop_dem:
-                                continue
-
-                            quantity = quantity_that_fits(
-                                product=next_product,
-                                demand=shop_dem[next_product],
-                                weights_dict=weights_dict,
-                                vol_dict=vol_dict,
-                                cage_weight_capacity=cage_weight_capacity,
-                                cage_vol_capacity=cage_vol_capacity,
-                                c_weight=c_weight,
-                                c_vol=c_vol
-                            )
-
-                            c_weight, c_vol = add_product(
-                                product=product,
-                                quantity=quantity,
-                                shop_dem=shop_dem,
-                                c_weight=c_weight,
-                                c_vol=c_vol,
-                                trips=trips,
-                                trip=trip,
-                                cage=cage,
-                                weights_dict=weights_dict,
-                                vol_dict=vol_dict,
-                            )
-
-                # this is a fail-safe. The blocking product should still remain, and thus shop_dem > 0
-                if not shop_dem:
-                    break
-                
-                # open a new cage and retry the original slot before the look-ahead
-                trip, cage, c_weight, c_vol = open_new_cage(
-                    trip=trip,
-                    cage=cage,
-                    c_weight=c_weight,
-                    c_vol=c_vol,
-                    trips=trips,
-                    cages_per_trip=cages_per_trip,
-                )
-
-            else:
-                slot += 1
-
-    return trips
+    return batches
+            
