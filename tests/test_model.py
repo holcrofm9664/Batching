@@ -79,7 +79,6 @@ for (
         max_order_size=max_order_size
     )
 
-
     instance = preprocessing_function_batching(
         pick_data=pick_data,
         solution_allocation=solution_allocation,
