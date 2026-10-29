@@ -1,19 +1,67 @@
+import pandas as pd
+import numpy as np
 import random
 import math
-import pandas as pd
-from slap.utils.dataclasses import (
-    OrdersData,
-    CageData
-)
+from ast import literal_eval
+from slap.utils.dataclasses import OrdersData, CageData, WarehouseData
+
+def clean_dataframes(
+    pick_data:pd.DataFrame,
+    assignments:pd.DataFrame
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Cleans the dataframes by dropping NA values and renaming columns.
+
+    Args:
+        pick_data: Dataframe containing orders data.
+        assignments: Dataframe containing storage assignments.
+
+    Returns:
+        The cleaned data frames.
+    """
+
+    column_headers_dict = {
+        "tpnd":"tpnd",
+        "Store":"store_id",
+        "store":"store_id",
+        "shop":"store_id",
+        "Shop":"store_id",
+        "assignment":"trip",
+        "assignment_number":"trip",
+        "batch":"trip",
+        "Batch":"trip",
+        "uod_number":"cage",
+        "uod":"cage",
+        "Cage":"cage",
+        "datetime":"time",
+        "qty":"qty_to_pick",
+        "pick_qty":"qty_to_pick",
+        "Aisle":"aisle"
+    }
+
+    # rename columns in both dataframes
+    pick_data = (
+        pick_data
+        .rename(columns = column_headers_dict)
+    )
+
+    assignments = (
+        assignments
+        .rename(columns = column_headers_dict)
+    )
+
+    # drop NA values from the assignments dataframe
+    assignments = assignments.dropna()
+
+    return pick_data, assignments
 
 def weights_and_volumes(
-    solution_allocation:pd.DataFrame, 
+    assignments:pd.DataFrame, 
     prod_subset:list[int]
 ) -> tuple[dict[int,float], dict[int,float]]:
     """Constructs a weights dictionary and a volumes dictionary from the dataframe.
 
     Args:
-        solution_allocation: Dataframe containing the weights and volumes.
+        assignments: Dataframe containing the weights and volumes.
         prod_subset: Products remaining after we have filtered for time and a chosen 
             product subset.
 
@@ -23,8 +71,8 @@ def weights_and_volumes(
 
     # construct the weights and volumes dictionaries
     df = (
-        solution_allocation[
-            solution_allocation["tpnd"].isin(prod_subset)
+        assignments[
+            assignments["tpnd"].isin(prod_subset)
         ]
         .drop_duplicates(subset="tpnd")
         .set_index("tpnd")
@@ -35,20 +83,235 @@ def weights_and_volumes(
     
     return weight_dict, volume_dict
 
-def create_orders(
-        pick_data:pd.DataFrame, 
-        prod_subset:list[int], 
-        orders_data:OrdersData, 
-        volume_dict:dict[int,float], 
-        weight_dict:dict[int,float], 
-        cage_data:CageData
-    ) -> list[list[int]]:
-    """Creates a set of synthetic orders based on user specifications and historical 
-    product demands.
+
+def create_max_batches(
+    weights_dict:dict[int,float], 
+    volumes_dict:dict[int,float], 
+    orders:list[list[int]], 
+    cage_data:CageData, 
+    buffer:float=0.25, 
+    cages_per_batch:int=5
+) -> int:
+    """Finds a maximum number of batches the model is permitted to use.
 
     Args:
-        pick_data: Data frame containing pick data.
-        prod_subset: Products to assign to slots.
+        weights_dict: Product weights.
+        volumes_dict: Product volumes.
+        orders: Orders used for the instance.
+        cage_data: Cage-related data.
+        buffer: Percentage above minimum number of cages offered.
+        cages_per_batch: Number of cages comprising each batch.
+    
+    Returns:
+        The maximum allowed number of batches.
+    """
+
+    num_cages, current_weight, current_volume, current_orders = 1, 0, 0, 0
+
+    for order in orders:
+
+        current_orders += 1
+
+        for prod in order:
+            w, v = weights_dict[prod], volumes_dict[prod]
+            if (
+                current_weight + w <= cage_data.cage_weight_capacity
+                and current_volume + v <= cage_data.cage_volume_capacity
+                and current_orders <= cage_data.max_orders_per_cage
+            ):
+                current_weight += w
+                current_volume += v
+            else:
+                num_cages += 1
+                current_weight = w
+                current_volume = v
+                current_orders = 1
+
+    # offer more cages than required - the model may find a better solution with more than the minimum
+    max_batches = math.floor((1+buffer)*math.ceil(num_cages / cages_per_batch) + 1)
+
+    return max_batches
+
+def sample_orders(
+    pick_data:pd.DataFrame,
+    num_samples:int
+) -> dict[tuple[str,int],list[int]] :
+    """Samples orders to be used in the instance.
+
+    Args:
+        pick_data: Dataframe containing orders data.
+        num_samples: Number of orders sampled.
+
+    Returns:
+        Sampled orders dictionary.
+    """
+    
+    groups_df = pick_data.groupby(
+        ["time","store_id"],
+        as_index=False
+    ).agg(
+        qty = ("qty_to_pick",sum)
+    )
+
+    orders_dict = {(t,s):q for t,s,q in zip(groups_df["time"].to_list(),groups_df["store_id"].to_list(),groups_df["qty"].to_list())}
+
+    sample = random.sample(
+        [k for k in orders_dict.keys()],
+        counts = orders_dict.values(),
+        k = num_samples
+    )
+
+    orders_dict = {}
+
+    for s in sample:
+
+        # the dataframe for just that order
+        new_df = pick_data[(pick_data["time"]==s[0]) & (pick_data["store_id"] == s[1])]
+
+        prods = new_df["tpnd"].to_list()
+        qtys = new_df["qty_to_pick"].to_list()
+
+        qty_dict = {k:q for k,q in zip(prods,qtys)}
+
+        for k in prods:
+            orders_dict.setdefault((s[0],s[1]),[]).extend([k for _ in range(qty_dict[k])])
+
+    return orders_dict
+
+def get_prod_assignments(
+        assignments:pd.DataFrame
+) -> dict[int,tuple[int,int]]:
+    """Gets product assignments from assignments data frame, for single-placement.
+
+    Args:
+        assignments: The Assignments data frame.
+
+    Returns:
+        A dictionary containing products and their respective slots.
+    """
+
+    assignments = assignments.dropna(subset="tpnd")
+    prod_assignments = {
+        k:(a,b) 
+        for k,a,b in zip(
+            assignments["tpnd"].to_list(),
+            assignments["aisle"].to_list(),
+            assignments["bay"].to_list()
+        )
+    }
+    return prod_assignments
+
+def merge_and_clean_dfs(
+        assignments:pd.DataFrame,
+        locations:pd.DataFrame
+) -> pd.DataFrame:
+    """Merges and filters the key dataframes to create the assignments dataframe.
+
+    Args:
+        assignments: Data frame containing assignments.
+        locations: Data frame containing location information.
+
+    Returns:
+        The assignments dataframe.
+    """
+
+    # rename columns
+    locations = locations.rename(
+        columns={
+            "Name":"location",
+            "Aisle":"aisle"
+        }
+    )
+
+    # merge the dataframes
+    assignments = assignments.merge(locations,how="outer",on="location")
+
+    # retrieve the aisles
+    assignments["aisle"] = np.ceil(
+        assignments["MapCol"]/3
+    ).astype(int)
+
+    # retrieve the bays
+    assignments["bay"] = 62 - assignments["MapRow"]
+
+    # calculate the volumes
+    assignments["volume"] = assignments["weight"]/assignments["mass_factor"]
+
+    # extract product numbers
+    assignments["tpnd"] = assignments["tpnd"].str.replace(
+        r"\D",
+        "",
+        regex=True
+    )
+
+    # reduce to relevant columns
+    assignments = assignments[
+        [
+            "location",
+            "tpnd",
+            "aisle",
+            "bay",
+            "weight",
+            "volume"
+        ]
+    ]
+
+    return assignments
+
+# -----------------------------------------------------------------------------------
+# helpers specifically for synthetic instances
+# -----------------------------------------------------------------------------------
+
+def sample_products(
+    num_prods:int, 
+    pick_data:pd.DataFrame,
+    assignments:pd.DataFrame
+) -> list[int]:
+    """Samples products to be kept in the instance.
+
+    Args:
+        num_prods: the number of products to include in the instance
+        pick_data: Dataframe containing orders data.
+        assignments: Dataframe containing storage assignments.
+
+    Returns:
+        All the products and the products that have been sampled.
+    """
+
+    all_prods = assignments["tpnd"].unique()
+    
+    unit_qty_dict = dict(pick_data.groupby("tpnd")["qty_to_pick"].sum())
+
+    if num_prods >= len(unit_qty_dict):
+        print(f"Too many products requested. Returning all products")
+        return list(int(x) for x in all_prods), list(int(x) for x in all_prods)
+
+
+    items, frequencies = list(unit_qty_dict.keys()), list(unit_qty_dict.values())
+
+    sampled_prods = np.random.choice(
+        a = items,
+        size = num_prods,
+        replace = False,
+        p = frequencies/np.sum(frequencies)
+    )
+
+    all_prods = list(int(x) for x in all_prods)
+    sampled_prods = list(int(x) for x in sampled_prods)
+
+    return all_prods, sampled_prods
+
+
+def create_orders(
+    pick_data:pd.DataFrame, 
+    prod_subset:list[int], 
+    orders_data:OrdersData
+) -> list[list[int]]:
+    """Creates a set of synthetic orders.
+
+    Args:
+        pick_data: Data frame with pick data.
+        prod_subset: Products used in the instance.
         orders_data: Orders-related data.
         volume_dict: Product weights.
         weight_dict: Product volumes.
@@ -57,7 +320,7 @@ def create_orders(
     Returns:
         Orders to be used in the optimisation.
     """
-    
+
     if len(prod_subset) == 0:
         return [], {}
     
@@ -84,11 +347,48 @@ def create_orders(
             k=order_size
         )
 
-        order_weight = sum([weight_dict[k] for k in order])
-        order_volume = sum([volume_dict[k] for k in order])
+        orders.append(order)
 
-        if order_weight < cage_data.cage_weight_capacity*cage_data.fill_frac and order_volume < cage_data.cage_volume_capacity*cage_data.fill_frac:
-            orders.append(order)
+    return orders, product_demands_dict
+
+
+def create_aisle_assignments(
+    assignments:pd.DataFrame,
+    warehouse_data:WarehouseData,
+    prod_subset:list[int], 
+    num_zones:int,  
+    product_demands_dict:dict[int,int] 
+) -> tuple[dict[int,list[int]],dict[int,list[int]]]:
+    """Creates a set of synthetic assignments.
+
+    Args:
+        assignments: Data frame containing assignments and weights.
+        warehouse_data: Warehouse-related data.
+        prod_subset: Products stored in the warehouse.
+        num_zones: Number of zones.
+        product_demands_dict: Demands of each product.
+
+    Returns:
+        The aisle assignments.
+    """
+
+    aisles = list(range(warehouse_data.num_aisles))
+    zones = np.array_split(aisles, num_zones)
+
+    aisle_capacity = warehouse_data.num_bays*warehouse_data.slot_capacity
+
+    # Products ordered from heaviest to lightest
+    weights = (
+        assignments
+        .set_index("tpnd")["weight"]
+        .to_dict()
+    )
+
+    prods_by_weight = sorted(
+        prod_subset,
+        key=lambda p: weights[int(p)],
+        reverse=True
+    )
 
     # Products ordered from highest to lowest demand
     prods_by_demand = sorted(
@@ -97,62 +397,24 @@ def create_orders(
         reverse=True
     )
 
-    return orders, prods_by_demand
+    current_assignments = {}
+    pos = 0
 
+    for zone in zones:
+        num_slots = len(zone) * aisle_capacity
 
-def create_max_batches(
-    weights_dict:dict[int,float], 
-    volumes_dict:dict[int,float], 
-    orders:list[list[int]], 
-    cage_data:CageData, 
-    buffer:float=0.25, 
-    cages_per_batch:int=5
-) -> int:
-    """Finds a maximum number of batches the model is permitted to use.
+        zone_prods = set(prods_by_weight[pos:pos + num_slots])
+        zone_prods_by_demand = [p for p in prods_by_demand if p in zone_prods]
 
-    Args:
-        weights_dict: Product weights.
-        volumes_dict: Product volumes.
-        orders: Orders generated for the instance.
-        cage_data: Cage-related data.
-        buffer: Percentage above minimum number of cages offered.
-        cages_per_batch: Number of cages comprising each batch.
-    
-    Returns:
-        The maximum allowed number of batches.
-    """
+        for idx, aisle in enumerate(zone):
+            start = idx * aisle_capacity
+            end = start + aisle_capacity
 
-    cage_weight_capacity = cage_data.cage_weight_capacity*cage_data.fill_frac
-    cage_volume_capacity = cage_data.cage_volume_capacity*cage_data.fill_frac
+            for prod in zone_prods_by_demand[start:end]:
+                current_assignments[prod] = aisle
 
-    W = {
-        o: sum(weights_dict[prod] for prod in order)
-        for o, order in enumerate(orders)
-    }
+        pos += len(zone_prods_by_demand)
 
-    V = {
-        o: sum(volumes_dict[prod] for prod in order)
-        for o, order in enumerate(orders)
-    }
+    aisle_assignments = {v: [k for k, val in current_assignments.items() if val == v] for v in aisles}
 
-    num_cages, current_weight, current_volume = 1, 0, 0
-
-    for order, _ in enumerate(orders):
-        w, v = W[order], V[order]
-
-        if (
-            current_weight + w <= cage_weight_capacity
-            and current_volume + v <= cage_volume_capacity
-        ):
-            current_weight += w
-            current_volume += v
-        else:
-            num_cages += 1
-            current_weight = w
-            current_volume = v
-
-    # offer more cages than required - the model may find a better solution with more than the minimum
-    max_batches = math.floor((1+buffer)*math.ceil(num_cages / cages_per_batch) + 1)
-
-    return max_batches
-
+    return aisle_assignments
