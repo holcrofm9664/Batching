@@ -16,7 +16,7 @@ from slap.utils.dataclasses import (
 
 def preprocessing_function_batching(
     pick_data:pd.DataFrame, 
-    solution_allocation:pd.DataFrame, 
+    assignments:pd.DataFrame, 
     num_products:int, 
     orders_data:OrdersData, 
     warehouse_data:WarehouseData,  
@@ -26,21 +26,21 @@ def preprocessing_function_batching(
 ) -> tuple[list[list[int]], dict[int,list[int]], int, dict[int,float], dict[int,float], int, int, int, int, float, int, int, int]:
 
     # clean pick data and solution allocation dataframes
-    pick_data, solution_allocation = clean_dataframes(
+    pick_data, assignments = clean_dataframes(
         pick_data=pick_data,
-        solution_allocation=solution_allocation
+        assignments=assignments
     )
 
     # take a sample of products
     _, prod_subset = sample_products(
         num_prods=num_products,
-        solution_allocation=solution_allocation,
+        assignments=assignments,
         pick_data=pick_data
     )
 
     # get the product weights and volumes
     weights_dict, volumes_dict = weights_and_volumes(
-        solution_allocation=solution_allocation,
+        assignments=assignments,
         prod_subset=prod_subset
     )
 
@@ -60,7 +60,7 @@ def preprocessing_function_batching(
     )
     
     aisle_assignments = create_aisle_assignments(
-        solution_allocation=solution_allocation,
+        assignments=assignments,
         warehouse_data=warehouse_data,
         prod_subset=prod_subset,
         num_zones=warehouse_data.num_zones,
