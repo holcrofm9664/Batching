@@ -14,6 +14,7 @@ def batching_model(
     volumes_dict:dict[int,int], 
     warehouse_data:WarehouseData, 
     cage_data:CageData, 
+    time_limit:int,
     cages_per_batch:int=5,  
     **unused:Any
     ) -> tuple[float, dict[Any,dict[Any,list[int]]]]:
@@ -27,10 +28,11 @@ def batching_model(
         volumes_dict: Product volumes.
         warehouse_data: Warehouse-related data.
         cage_data: Cage-related data.
+        time_limit: Model time limit.
         cages_per_batch: the number of cages each split can be split into
     
     Returns:
-        The final batches and corresponding total distance.
+        The solve status, time and gap, and final batches and corresponding total distance.
     """
 
     W, V = weights_dict, volumes_dict
@@ -100,6 +102,8 @@ def batching_model(
     # our model
     model = gp.Model("batching_strict_s")
 
+    model.setParam("TimeLimit", time_limit)
+    
     zp_combs = [
         (k,t,a)
         for k in P
@@ -355,4 +359,4 @@ def batching_model(
 
             trips_dict[f"trip {t}"] = trip_dict
 
-    return distance, trips_dict
+    return model.Status, model.Runtime, model.MIPGap, distance, trips_dict
