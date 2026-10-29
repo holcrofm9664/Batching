@@ -230,6 +230,7 @@ def merge_and_clean_dfs(
     assignments["aisle"] = np.ceil(
         assignments["MapCol"]/3
     ).astype(int)
+    assignments["aisle"] = assignments["aisle"]-1
 
     # retrieve the bays
     assignments["bay"] = 62 - assignments["MapRow"]

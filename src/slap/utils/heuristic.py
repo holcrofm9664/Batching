@@ -11,7 +11,7 @@ def batching_heuristic(
         prod_assignments:dict[int:tuple[int,int]],
         cages_per_batch:int=5
 ):
-    
+
     sol_prods = {x for x in prod_assignments.keys()}
 
     aisles = [x for x in range(70)]
@@ -27,15 +27,16 @@ def batching_heuristic(
     prod_idx = {k:slot_idx[prod_assignments[k]] for k in sol_prods}
 
     cage_idx = 1
-
+    
     cages, cage_orders = {cage_idx:[]}, {cage_idx:[]}
-    cage_weights, cage_volumes = {cage_idx:0}, {cage_idx,0}
+    cage_weights, cage_volumes = {cage_idx:0}, {cage_idx:0}
 
     prods_in_orders = [prod for order in orders.values() for prod in order]
 
     prods_sorted = deque(sorted(prods_in_orders,key = lambda x:prod_idx[x]))
 
-    for prod in prods_sorted:
+    while prods_sorted:
+        prod = prods_sorted[0]
         for order in [order for order in orders if prod in orders[order]]:
             placed = False
             for cage in cages:
