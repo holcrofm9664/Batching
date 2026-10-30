@@ -2,22 +2,22 @@ import pandas as pd
 from slap.utils.helpers import (
     clean_dataframes, 
     weights_and_volumes, 
-    create_orders, 
+    sample_orders, 
     create_max_batches
 )
 
 from slap.utils.dataclasses import (
     CageData,
-    OrdersData,
     WarehouseData
 )
 
 def batching_preprocessing(
     pick_data:pd.DataFrame, 
     assignments:pd.DataFrame, 
-    orders_data:OrdersData,  
+    num_samples:int, 
     cage_data:CageData,
     time_limit:int,
+    seed:int,
     cages_per_batch:int=5, 
     buffer:float=0.25
 ) -> tuple[list[list[int]], dict[int,list[int]], int, dict[int,float], dict[int,float], int, int, int, int, float, int, int, int]:
@@ -26,8 +26,12 @@ def batching_preprocessing(
     Args:
         pick_data: Data frame containing pick data.
         assignments: Data frame containing assignments.
-        max_orders_per_cage: Maximum-permitted orders assigned to each cage.
-        num_samples: Number of orders sampled for the instance.
+        num_samples: Number of orders sampled.
+        cage_data: Cage-related data.
+        time_limit: Model time limit.
+        seed: Seed for controlling randomness.
+        cages_per_batch: Cages in each batch.
+        buffer: Extra-trips buffer.
 
     Returns:
         An instance for the batching heuristic.
@@ -46,10 +50,10 @@ def batching_preprocessing(
         prod_subset=all_products
     )
 
-    orders, product_demands_dict = create_orders(
+    orders = sample_orders(
         pick_data=pick_data,
-        prod_subset=all_products,
-        orders_data=orders_data
+        num_samples=num_samples,
+        seed=seed
     )
 
     max_batches = create_max_batches(
@@ -60,15 +64,23 @@ def batching_preprocessing(
         buffer=buffer,
         cages_per_batch=cages_per_batch
     )
-    grouped = assignments.groupby("aisle",as_index=False)
 
+    grouped = assignments.groupby(
+        "aisle",
+        as_index=False
+    )
     aisle_assignments_df = (
         grouped.agg(
             products_list = ("tpnd",list)
         )
     )
 
-    aisle_assignments = dict(zip(aisle_assignments_df["aisle"],aisle_assignments_df["products_list"]))
+    aisle_assignments = dict(
+        zip(
+            aisle_assignments_df["aisle"],
+            aisle_assignments_df["products_list"]
+        )
+    )
 
     warehouse_data = WarehouseData(
         num_aisles=70,

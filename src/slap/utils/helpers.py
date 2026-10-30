@@ -134,13 +134,15 @@ def create_max_batches(
 
 def sample_orders(
     pick_data:pd.DataFrame,
-    num_samples:int
+    num_samples:int,
+    seed:int
 ) -> dict[tuple[str,int],list[int]] :
     """Samples orders to be used in the instance.
 
     Args:
         pick_data: Dataframe containing orders data.
         num_samples: Number of orders sampled.
+        seed: Seed for controlling randomness.
 
     Returns:
         Sampled orders dictionary.
@@ -155,6 +157,8 @@ def sample_orders(
 
     orders_dict = {(t,s):q for t,s,q in zip(groups_df["time"].to_list(),groups_df["store_id"].to_list(),groups_df["qty"].to_list())}
 
+    random.seed(seed)
+    
     sample = random.sample(
         [k for k in orders_dict.keys()],
         counts = orders_dict.values(),

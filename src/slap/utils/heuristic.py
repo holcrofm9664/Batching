@@ -21,7 +21,7 @@ def batching_heuristic(
     for aisle,bay in product(aisles,bays):
         slot_idx[(aisle,bay)] = (
             60*aisle + bay if aisle % 2 == 0
-            else 60*aisle + (60-bay)
+            else 60*aisle + (61-bay)
         )
 
     prod_idx = {k:slot_idx[prod_assignments[k]] for k in sol_prods}
@@ -34,6 +34,8 @@ def batching_heuristic(
     prods_in_orders = [prod for order in orders.values() for prod in order]
 
     prods_sorted = deque(sorted(prods_in_orders,key = lambda x:prod_idx[x]))
+
+    orders = {k:v.copy() for k,v in orders.items()}
 
     while prods_sorted:
         prod = prods_sorted[0]
@@ -84,7 +86,15 @@ def batching_heuristic(
     num_batches = math.ceil(len(cages)/cages_per_batch)
     batches = {}
     for b in range(num_batches):
-        batches[b] = {k:v for k,v in cages.items() if k in range(b-1,b+cages_per_batch)}
+        batches[b] = {
+            k:v 
+            for k,v 
+            in cages.items() 
+            if k in range(
+                b * cages_per_batch + 1,
+                (b+1) * cages_per_batch + 1
+            )
+        }
 
     return batches
             

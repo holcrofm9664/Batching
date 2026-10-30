@@ -8,7 +8,8 @@ def heuristic_preprocessing(
     assignments:pd.DataFrame, 
     max_orders_per_cage:int,
     num_samples:int,
-    cages_per_batch:int     
+    cages_per_batch:int,
+    seed:int    
 ) -> dict[str,Any]:
     """Creates an instance for the batching heuristic.
 
@@ -18,6 +19,7 @@ def heuristic_preprocessing(
         max_orders_per_cage: Maximum-permitted orders assigned to each cage.
         num_samples: Number of orders sampled for the instance.
         cages_per_batch: Number of cages per batch.
+        seed: Seed for controlling randomness in orders generation.
 
     Returns:
         An instance for the batching heuristic.
@@ -25,7 +27,8 @@ def heuristic_preprocessing(
 
     orders = sample_orders(
         pick_data = pick_data,
-        num_samples=num_samples
+        num_samples=num_samples,
+        seed=seed
     )
 
     weights_dict, volumes_dict = weights_and_volumes(
