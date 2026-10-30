@@ -158,7 +158,7 @@ def sample_orders(
     orders_dict = {(t,s):q for t,s,q in zip(groups_df["time"].to_list(),groups_df["store_id"].to_list(),groups_df["qty"].to_list())}
 
     random.seed(seed)
-    
+
     sample = random.sample(
         [k for k in orders_dict.keys()],
         counts = orders_dict.values(),
@@ -206,17 +206,17 @@ def get_prod_assignments(
     return prod_assignments
 
 def merge_and_clean_dfs(
-        assignments:pd.DataFrame,
+        solution_allocation:pd.DataFrame,
         locations:pd.DataFrame
 ) -> pd.DataFrame:
     """Merges and filters the key dataframes to create the assignments dataframe.
 
     Args:
-        assignments: Data frame containing assignments.
+        solution_allocation: Data frame containing assignments.
         locations: Data frame containing location information.
 
     Returns:
-        The assignments dataframe.
+        The assignments and single assignments dataframes.
     """
 
     # rename columns
@@ -228,7 +228,7 @@ def merge_and_clean_dfs(
     )
 
     # merge the dataframes
-    assignments = assignments.merge(locations,how="outer",on="location")
+    assignments = solution_allocation.merge(locations,how="outer",on="location")
 
     # retrieve the aisles
     assignments["aisle"] = np.ceil(
@@ -249,6 +249,16 @@ def merge_and_clean_dfs(
         regex=True
     )
 
+    # reorder by location
+    assignments=assignments.sort_values(
+        by="location",
+        key = lambda col:col.str.replace(
+            r"\D",
+            "",
+            regex=True
+        ).astype(int)
+    )
+
     # reduce to relevant columns
     assignments = assignments[
         [
@@ -261,7 +271,12 @@ def merge_and_clean_dfs(
         ]
     ]
 
-    return assignments
+    single_assignments = assignments.drop_duplicates(
+        subset="tpnd",
+        keep="first"
+    )
+
+    return assignments, single_assignments
 
 # -----------------------------------------------------------------------------------
 # helpers specifically for synthetic instances
