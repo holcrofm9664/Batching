@@ -12,6 +12,9 @@ def batching_heuristic(
         cages_per_batch:int=5
 ):
 
+    cage_weight_capacity = cage_data.cage_weight_capacity * cage_data.fill_frac
+    cage_volume_capacity = cage_data.cage_volume_capacity * cage_data.fill_frac
+
     sol_prods = {x for x in prod_assignments.keys()}
 
     aisles = [x for x in range(70)]
@@ -44,8 +47,8 @@ def batching_heuristic(
             for cage in cages:
                 if (
                     order in cage_orders[cage]
-                    and cage_weights[cage] + weights_dict[prod] <= cage_data.cage_weight_capacity
-                    and cage_volumes[cage] + volumes_dict[prod] <= cage_data.cage_volume_capacity
+                    and cage_weights[cage] + weights_dict[prod] <= cage_weight_capacity
+                    and cage_volumes[cage] + volumes_dict[prod] <= cage_volume_capacity
                 ):
                     cages[cage].append(prod)
                     cage_weights[cage] += weights_dict[prod]
@@ -56,8 +59,8 @@ def batching_heuristic(
                     break
                 elif (
                     len(cage_orders[cage]) < cage_data.max_orders_per_cage
-                    and cage_weights[cage] + weights_dict[prod] <= cage_data.cage_weight_capacity
-                    and cage_volumes[cage] + volumes_dict[prod] <= cage_data.cage_volume_capacity
+                    and cage_weights[cage] + weights_dict[prod] <= cage_weight_capacity
+                    and cage_volumes[cage] + volumes_dict[prod] <= cage_volume_capacity
                 ):
                     cage_orders[cage].append(order)
                     cages[cage].append(prod)
