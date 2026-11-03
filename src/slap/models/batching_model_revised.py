@@ -21,7 +21,7 @@ def batching_model(
     """Constructs a set of batches from a set of orders to minimise distance.
     
     Args:
-        orders: Orders constituting items which cannot be picked in different trips.
+        orders: Orders constituting items which cannot be picked in different batches.
         aisle_assignments: Current assignment of products to aisles.
         max_batches: Maximum permitted number of batches.
         weights_dict: Product weights.
@@ -40,7 +40,7 @@ def batching_model(
     # adjust for prudential liquid-fill
     cage_weight_capacity = cage_data.fill_frac*cage_data.cage_weight_capacity
     cage_volume_capacity = cage_data.fill_frac*cage_data.cage_volume_capacity
-
+    
     # orders need to be in a dictionary such that we can access the keys
     if type(orders) == list:
         orders = {i+1:order for i,order in enumerate(orders)}
@@ -149,9 +149,14 @@ def batching_model(
     ]
 
     # the variables
-    y = model.addVars(y_combs, vtype=GRB.INTEGER, name="y") # the quantity of product k from order o assigned to cage c of trip t
+    y = model.addVars(y_combs, vtype=GRB.INTEGER, name="y") # the quantity of product k from order o assigned to cage c of batch t
     yp = model.addVars(yp_combs, vtype = GRB.BINARY, name = "yp") # if any products of type k from order o are assigned to cage c of batch t
-    Y = model.addVars(O, T, C, vtype=GRB.BINARY, name = "Y") # if any products from order o are assigned to cage c of trip t
+    Y = {
+        (o, t, c): model.addVar(vtype=GRB.BINARY)
+        for o in O
+        for t in T
+        for c in C
+    }
     YP = model.addVars(P, T, vtype=GRB.BINARY, name = "YP") # if any of product k assigned to batch t
     z = model.addVars(T, A, vtype = GRB.BINARY, name = "z") # if batch t visits aisle a
     zp = model.addVars(zp_combs, vtype = GRB.BINARY, name="zp") # if products of type k are picked from aisle a for order o
@@ -184,7 +189,7 @@ def batching_model(
         m = m_dict[(o,k)]
         model.addConstr(
             y[o,k,t,c] <= m*yp[o,k,t,c],
-            name = f"flag_yp_when_product_{k}_from_order_{o}_assigned_to_cage_{c}_of_trip_{t}"
+            name = f"flag_yp_when_product_{k}_from_order_{o}_assigned_to_cage_{c}_of_batch_{t}"
         )
 
     for t in T:
@@ -205,12 +210,12 @@ def batching_model(
 
         model.addConstr(
             gp.quicksum(z[t,a] for a in A) >= 2*(1-w[t]),
-            name = f"if_fewer_than_two_aisles_visited_then_w_forced_to_one_trip_{t}"
+            name = f"if_fewer_than_two_aisles_visited_then_w_forced_to_one_batch_{t}"
         )
 
         model.addGenConstrAnd(
             Pen[t], [w[t],z[t,0]],
-            name = f"enforce_first_aisle_penalty_trip_{t}_if_fewer_than_two_aisles_contain_picks_and_first_aisle_contains_a_pick"
+            name = f"enforce_first_aisle_penalty_batch_{t}_if_fewer_than_two_aisles_contain_picks_and_first_aisle_contains_a_pick"
         )
 
         model.addConstr(
@@ -225,14 +230,14 @@ def batching_model(
 
         model.addConstr(
             gp.quicksum(Y[o,t,c] for o in O for c in C) + E[t] >= 1,
-            name = f"if_no_products_assigned_to_trip_{t}_then_E_{t}_equals_1"
+            name = f"if_no_products_assigned_to_batch_{t}_then_E_{t}_equals_1"
         )
 
         model.addConstr(
             dist[t] == L * (gp.quicksum(z[t,a] for a in A) + gp.quicksum(p[t,a,b] for a in A for b in A if b > a if (t,a,b) in p) + F[t] + Q[t] - E[t]) 
                     + 2 * M * q_idx[t]
                     + 2 * M * Pen[t],
-            name = f"the_distance_for_trip_{t}"
+            name = f"the_distance_for_batch_{t}"
         )
         
     for o in O:
@@ -257,7 +262,7 @@ def batching_model(
 
             model.addConstr(
                 gp.quicksum(Y[o,t,c] for o in O) <= cage_data.max_orders_per_cage,
-                name = f"permit_up_to_{cage_data.max_orders_per_cage}_orders_assigned_to_cage_{c}_of_trip_{t}"
+                name = f"permit_up_to_{cage_data.max_orders_per_cage}_orders_assigned_to_cage_{c}_of_batch_{t}"
             )
 
     for t, a, b in p_combs:
@@ -295,7 +300,7 @@ def batching_model(
                 if B_dict[(o,k)] == 1:
                     model.addConstr(
                         z[t,a] >= yp[o,k,t,c] + zp[k,t,a] - 1,
-                        name = f"if_product_{k}_from_order_{o}_assigned_to_cage_{c}_of_trip_{t}_and_we_pick_that_product_from_aisle_{a}_then_that_trip_must_enter_that_aisle"
+                        name = f"if_product_{k}_from_order_{o}_assigned_to_cage_{c}_of_batch_{t}_and_we_pick_that_product_from_aisle_{a}_then_that_batch_must_enter_that_aisle"
                     )
     for k in P:
         for t in T:
@@ -315,14 +320,14 @@ def batching_model(
         if t > 1:
             model.addConstr(
                 dist[t] >= dist[t-1],
-                name = f"trip_symmetry_breaking_trip_{t}"
+                name = f"batch_symmetry_breaking_batch_{t}"
             )
 
         for c in C:
             if c > 1:
                 model.addConstr(
                     gp.quicksum(W[k]*y[o,k,t,c] for o in O for k in order_const_dict[o]) <= gp.quicksum(W[k]*y[o,k,t,c-1] for o in O for k in order_const_dict[o]),
-                    name = f"cage_symmetry_breaking_cage_{c}_trip_t"
+                    name = f"cage_symmetry_breaking_cage_{c}_batch_t"
                 )
 
     model.setObjective(
@@ -337,14 +342,14 @@ def batching_model(
         return None, None
     
     else:
-        trips = set(t for _, _, t, _ in y_combs)
+        batches = set(t for _, _, t, _ in y_combs)
         cages = set(c for _, _, _, c in y_combs)
 
         distance = model.ObjVal
-        trips_dict = {}
+        batches_dict = {}
 
-        for t in trips:
-            trip_dict = {}
+        for t in batches:
+            batch_dict = {}
 
             for c in cages:
                 products = []
@@ -355,8 +360,8 @@ def batching_model(
                             if y[o,k,t,c].X > 0:
                                 products.extend([k] * int(y[o,k,t,c].X))
 
-                trip_dict[f"cage {c}"] = products
+                batch_dict[f"cage {c}"] = products
 
-            trips_dict[f"trip {t}"] = trip_dict
+            batches_dict[f"batch {t}"] = batch_dict
 
-    return model.Status, model.Runtime, model.MIPGap, distance, trips_dict
+    return model.Status, model.Runtime, model.MIPGap, distance, batches_dict
