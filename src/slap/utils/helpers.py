@@ -108,7 +108,7 @@ def create_max_batches(
 
     num_cages, current_weight, current_volume, current_orders = 1, 0, 0, 0
 
-    for order in orders:
+    for order in orders.values(): # have changed here
 
         current_orders += 1
 
