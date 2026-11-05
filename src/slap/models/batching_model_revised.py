@@ -363,5 +363,13 @@ def batching_model(
                 batch_dict[f"cage {c}"] = products
 
             batches_dict[f"batch {t}"] = batch_dict
+    
+    batch_aisles = {
+        t:[
+            a 
+            for a in A
+            if z[t,a].X > 0.5
+        ] for t in T
+    }
 
-    return model.Status, model.Runtime, model.MIPGap, distance, batches_dict
+    return model.Status, model.Runtime, model.MIPGap, distance, batches_dict, batch_aisles
