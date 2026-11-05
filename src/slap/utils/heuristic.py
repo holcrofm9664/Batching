@@ -2,6 +2,7 @@ from collections import deque
 from itertools import product
 import math
 from slap.utils.dataclasses import CageData
+from typing import Any
 
 def batching_heuristic(
         orders:dict[int,list[int]],
@@ -9,7 +10,8 @@ def batching_heuristic(
         volumes_dict:dict[int,float],
         cage_data:CageData,
         prod_assignments:dict[int:tuple[int,int]],
-        cages_per_batch:int=5
+        cages_per_batch:int=5,
+        **unused:Any
 ):
 
     cage_weight_capacity = cage_data.cage_weight_capacity * cage_data.fill_frac
@@ -99,5 +101,14 @@ def batching_heuristic(
             )
         }
 
-    return batches
+    aisles_visited = {
+        batch_id: list({
+            prod_assignments[prod][0]
+            for cage in batch.values()
+            for prod in cage
+        })
+        for batch_id, batch in batches.items()
+    }
+
+    return batches, aisles_visited
             
