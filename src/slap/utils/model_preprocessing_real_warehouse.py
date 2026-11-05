@@ -1,9 +1,10 @@
 import pandas as pd
+from typing import Any
 from slap.utils.helpers import (
-    clean_dataframes, 
     weights_and_volumes, 
     sample_orders, 
-    create_max_batches
+    create_max_batches,
+    get_prod_assignments
 )
 
 from slap.utils.dataclasses import (
@@ -14,33 +15,14 @@ from slap.utils.dataclasses import (
 def batching_preprocessing(
     pick_data:pd.DataFrame, 
     assignments:pd.DataFrame, 
-    num_samples:int, 
+    num_samples:int,  
     cage_data:CageData,
     time_limit:int,
-    seed:int,
+    repetition:int,
     cages_per_batch:int=5, 
-    buffer:float=0.25
+    buffer:float=0.25,
+    **unused:Any
 ) -> tuple[list[list[int]], dict[int,list[int]], int, dict[int,float], dict[int,float], int, int, int, int, float, int, int, int]:
-    """Creates an instance for the batching model.
-
-    Args:
-        pick_data: Data frame containing pick data.
-        assignments: Data frame containing assignments.
-        num_samples: Number of orders sampled.
-        cage_data: Cage-related data.
-        time_limit: Model time limit.
-        seed: Seed for controlling randomness.
-        cages_per_batch: Cages in each batch.
-        buffer: Extra-trips buffer.
-
-    Returns:
-        An instance for the batching heuristic.
-    """
-    # clean pick data and solution allocation dataframes
-    pick_data, assignments = clean_dataframes(
-        pick_data=pick_data,
-        assignments=assignments
-    )
 
     all_products = assignments["tpnd"].unique()
 
@@ -53,7 +35,7 @@ def batching_preprocessing(
     orders = sample_orders(
         pick_data=pick_data,
         num_samples=num_samples,
-        seed=seed
+        seed=repetition
     )
 
     max_batches = create_max_batches(
@@ -64,27 +46,23 @@ def batching_preprocessing(
         buffer=buffer,
         cages_per_batch=cages_per_batch
     )
+    grouped = assignments.groupby("aisle",as_index=False)
 
-    grouped = assignments.groupby(
-        "aisle",
-        as_index=False
-    )
     aisle_assignments_df = (
         grouped.agg(
             products_list = ("tpnd",list)
         )
     )
 
-    aisle_assignments = dict(
-        zip(
-            aisle_assignments_df["aisle"],
-            aisle_assignments_df["products_list"]
-        )
-    )
+    aisle_assignments = dict(zip(aisle_assignments_df["aisle"],aisle_assignments_df["products_list"]))
 
     warehouse_data = WarehouseData(
         num_aisles=70,
-        num_bays=122
+        num_bays=60
+    )
+
+    prod_assignments = get_prod_assignments(
+        assignments=assignments
     )
 
     instance = {
@@ -97,6 +75,7 @@ def batching_preprocessing(
         "cage_data":cage_data,
         "time_limit":time_limit,
         "cages_per_batch":cages_per_batch,
+        "prod_assignments":prod_assignments
     }
     
     return instance
