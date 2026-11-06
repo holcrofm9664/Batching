@@ -2,7 +2,6 @@ import pandas as pd
 import numpy as np
 import random
 import math
-from ast import literal_eval
 from slap.utils.dataclasses import OrdersData, CageData, WarehouseData
 
 def clean_dataframes(
@@ -108,7 +107,7 @@ def create_max_batches(
 
     num_cages, current_weight, current_volume, current_orders = 1, 0, 0, 0
 
-    for order in orders.values(): # have changed here
+    for order in orders.values(): 
 
         current_orders += 1
 
