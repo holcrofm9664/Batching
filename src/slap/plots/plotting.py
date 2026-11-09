@@ -269,3 +269,146 @@ def plot_aisle_visits_heatmap(
     )
 
     return 
+
+def plot_num_batches_runtime(
+        results:pd.DataFrame
+):
+    # Calculate median and quartiles for each instance size
+    df_plot = (
+        results.groupby("m_numbatches")["m_runtime"]
+        .agg(
+            median="median",
+            lq=lambda x: x.quantile(0.25),
+            uq=lambda x: x.quantile(0.75)
+        )
+        .reset_index()
+        .sort_values("m_numbatches")
+    )
+
+    # Create figure
+    fig, ax = plt.subplots(figsize=(6, 4))
+
+    # Plot median
+    ax.plot(
+        df_plot["m_numbatches"],
+        df_plot["median"],
+        color="steelblue",
+        linewidth=2,
+        marker="o",
+        markersize=5,
+        label="Median"
+    )
+
+    # Shade interquartile range
+    ax.fill_between(
+        df_plot["m_numbatches"],
+        df_plot["lq"],
+        df_plot["uq"],
+        color="steelblue",
+        alpha=0.2,
+        label="Interquartile range"
+    )
+
+    # Formatting
+    ax.set_xlabel("Number of Batches", fontsize=12)
+    ax.set_ylabel("Runtime", fontsize=12)
+
+    ax.tick_params(axis="both", labelsize=10)
+
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+
+    ax.set_ylim(bottom=0)
+    ax.legend(frameon=False)
+
+    plt.tight_layout()
+    plt.show()
+
+    fig.savefig(
+        "src/slap/plots/figures/num_batches_runtime.pdf",
+        bbox_inches="tight"
+    )
+
+
+def plot_num_units_runtime(
+        results:pd.DataFrame
+) -> pd.DataFrame:
+    
+    # Copy the data to avoid modifying the original dataframe
+    m = results["m_runtime"].copy()
+
+    # Create figure
+    fig, ax = plt.subplots(figsize=(8, 5))
+
+    # M: Larger filled blue circles
+    ax.scatter(
+        results["total_ordered_units"],
+        m,
+        color="steelblue",
+        s=80,
+        marker="o",
+        label="M",
+        zorder=3
+    )
+
+    # Formatting
+    ax.set_xlabel("Total ordered units", fontsize=12)
+    ax.set_ylabel("Distance reduction (%)", fontsize=12)
+
+    ax.tick_params(axis="both", labelsize=10)
+
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+
+    ax.legend(frameon=False)
+
+    plt.tight_layout()
+    plt.show()
+
+    # Save for publication
+    fig.savefig(
+        "src/slap/plots/figures/num_units_runtime.pdf",
+        bbox_inches="tight"
+    )
+
+
+def plot_num_unique_products_runtime(
+        results:pd.DataFrame
+) -> pd.DataFrame:
+    
+    # Copy the data to avoid modifying the original dataframe
+    m = results["m_runtime"].copy()
+
+    # Create figure
+    fig, ax = plt.subplots(figsize=(8, 5))
+
+    # M: Larger filled blue circles
+    ax.scatter(
+        results["total_unique_prods"],
+        m,
+        color="steelblue",
+        s=80,
+        marker="o",
+        label="M",
+        zorder=3
+    )
+
+    # Formatting
+    ax.set_xlabel("Total ordered units", fontsize=12)
+    ax.set_ylabel("Distance reduction (%)", fontsize=12)
+
+    ax.tick_params(axis="both", labelsize=10)
+
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+
+    ax.legend(frameon=False)
+
+    plt.tight_layout()
+    plt.show()
+
+    # Save for publication
+    fig.savefig(
+        "src/slap/plots/figures/num_unique_products_runtime.pdf",
+        bbox_inches="tight"
+    )
