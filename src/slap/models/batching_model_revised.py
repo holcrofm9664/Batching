@@ -15,13 +15,17 @@ def batching_model(
     warehouse_data:WarehouseData, 
     cage_data:CageData, 
     time_limit:int,
-    cages_per_batch:int=5,  
+    cages_per_batch:int=5,
+    warm_start=False, 
+    batch_contents:dict=False, 
+    batch_aisles:dict=False,
+    dist_by_batch:dict=False,
     **unused:Any
     ) -> tuple[float, dict[Any,dict[Any,list[int]]]]:
     """Constructs a set of batches from a set of orders to minimise distance.
     
     Args:
-        orders: Orders constituting items which cannot be picked in different batches.
+        orders: Orders to be batched together.
         aisle_assignments: Current assignment of products to aisles.
         max_batches: Maximum permitted number of batches.
         weights_dict: Product weights.
@@ -29,11 +33,13 @@ def batching_model(
         warehouse_data: Warehouse-related data.
         cage_data: Cage-related data.
         time_limit: Model time limit.
-        cages_per_batch: the number of cages each split can be split into
+        cages_per_batch: Number of cages each split can be split into.
+        warm_start: Heuristic batch solution.
     
     Returns:
         The solve status, time and gap, and final batches and corresponding total distance.
     """
+    print(f"max_batches:{max_batches}")
 
     W, V = weights_dict, volumes_dict
 
@@ -156,23 +162,106 @@ def batching_model(
         for o in O
         for t in T
         for c in C
-    }
+    } # if any products from order o are assigned to cage c of trip t
     YP = model.addVars(P, T, vtype=GRB.BINARY, name = "YP") # if any of product k assigned to batch t
     z = model.addVars(T, A, vtype = GRB.BINARY, name = "z") # if batch t visits aisle a
     zp = model.addVars(zp_combs, vtype = GRB.BINARY, name="zp") # if products of type k are picked from aisle a for order o
     f = model.addVars(T, A, vtype = GRB.BINARY, name = "f") # if aisle a is the first aisle with a pick for batch t
     q = model.addVars(T, A, vtype = GRB.BINARY, name = "q") # if aisle a is the last aisle with a pick for batch t
     q_idx = model.addVars(T, lb=0, ub = warehouse_data.num_aisles, vtype = GRB.INTEGER, name = "q_index") # the index of the last picked-from aisle for batch t
-    F = model.addVars(T, vtype = GRB.BINARY, name = "F") # if the index of the first picked-from aisle is odd
-    Q = model.addVars(T, vtype = GRB.BINARY, name = "Q") # if the index of the last aisle picked-from aisle is even
+    F = model.addVars(T, vtype = GRB.BINARY, name = "F") # if the index of the first picked-from aisle is odd (down)
+    Q = model.addVars(T, vtype = GRB.BINARY, name = "Q") # if the index of the last aisle picked-from aisle is even (up)
     w = model.addVars(T, vtype = GRB.BINARY, name = "w") # auxiliary variable which takes the value 1 if fewer than two aisles are picked from for batch t
     Pen = model.addVars(T, vtype = GRB.BINARY, name = "First_aisle_only_penalty") # an indicator for whether only the first aisle contains a pick (and a horizontal penalty of the 2M needs to be applied)
     p = model.addVars(p_combs, vtype = GRB.BINARY, name = "p") # if aisles a and b share a direction and form a consecutive pair of picked-from aisles for batch t
     E = model.addVars(T, vtype = GRB.BINARY, name = "E") # if batch t is non-empty
-    dist = model.addVars(T, vtype=GRB.CONTINUOUS, name="dist") # the distance travelled for batch T
+    dist = model.addVars(T, lb=0, vtype=GRB.CONTINUOUS, name="dist") # the distance travelled for batch T
+
+    if warm_start == True:
+
+        batch_contents = {
+            batch_id: {
+                i: contents
+                for i, contents in enumerate(batch.values(), start=1)
+            }
+            for batch_id, batch in batch_contents.items()
+        }
+
+        model.update()
+        
+        # Initialise all variables to zero
+        for var in model.getVars():
+            var.Start = 0
+
+        for t,cages in batch_contents.items():
+            for c,contents in cages.items():
+                for (k,o), quantity in contents.items():
+                    y[o,k,t,c].Start = quantity
+                    yp[o,k,t,c].Start = 1
+                    Y[o,t,c].Start = 1
+                    YP[k,t].Start = 1
+
+        for t in batch_contents.keys():
+            if not any(batch_contents[t].values()):
+                E[t].Start = 1
+                print(f"E[{t}].Start: {E[t].Start}")
+
+        for t, distance in dist_by_batch.items():
+            dist[t].Start = distance
+            print(f"dist[{t}].Start: {dist[t].Start}")
+
+        for t, aisles in batch_aisles.items():
+            for a in aisles:
+                z[t,a].Start = 1
+                print(f"z[{t},{a}].Start: {z[t,a].Start}")
+            if len(aisles) > 0:
+                first_aisle = min(aisles)
+                f[t,first_aisle].Start = 1
+                if first_aisle % 2 == 1:
+                    F[t].Start = 1
+                    print(f"F[{t}].Start: {F[t].Start}")
+            
+                last_aisle = max(aisles)
+                q[t,last_aisle].Start = 1
+                q_idx[t].Start = last_aisle
+                print(f"q_idx[{t}].Start: {q_idx[t].Start}")
+
+                if last_aisle % 2 == 0:
+                    Q[t].Start = 1
+
+            elif len(aisles) == 0:
+                Q[t].Start = 1
+            print(f"Q[{t}].Start: {Q[t].Start}")
+
+            if len(aisles) <= 1:
+                w[t].Start = 1
+                if 0 in aisles:
+                    Pen[t].Start = 1
+            print(f"Pen[{t}].Start: {Pen[t].Start}")
+            
+            for pair in zip(aisles,aisles[1:]):
+                if (pair[1]-pair[0]) % 2 == 0:
+                    p[t,pair[0],pair[1]].Start = 1
+            
+            for t, batch in batch_contents.items():
+                for c, cage in batch.items():
+                    prods = [k for (k,(a,b)) in cage.keys()]
+                    for k in prods:
+                        aisle = next((i for i, values in aisle_assignments.items() if k in values), None)
+                        zp[k,t,aisle].Start = 1
+                        
+        remaining_batches = [
+            t 
+            for t in T
+            if t not in batch_contents
+        ]
+
+        for t in remaining_batches:
+            E[t].Start = 1
+            w[t].Start = 1
+            Q[t].Start = 1
 
     # the constraints
-
     for o in O:
         for k in order_const_dict[o]:
             model.addConstr(
@@ -234,9 +323,18 @@ def batching_model(
         )
 
         model.addConstr(
-            dist[t] == L * (gp.quicksum(z[t,a] for a in A) + gp.quicksum(p[t,a,b] for a in A for b in A if b > a if (t,a,b) in p) + F[t] + Q[t] - E[t]) 
-                    + 2 * M * q_idx[t]
-                    + 2 * M * Pen[t],
+            dist[t] == L * (
+                gp.quicksum(
+                    z[t,a] for a in A
+                ) + gp.quicksum(
+                    p[t,a,b] 
+                    for a in A 
+                    for b in A 
+                    if b > a if (t,a,b) in p
+                ) + F[t] + Q[t]
+            ) 
+                + 2 * M * q_idx[t]
+                + 2 * M * Pen[t],
             name = f"the_distance_for_batch_{t}"
         )
         
@@ -266,7 +364,7 @@ def batching_model(
             )
 
     for t, a, b in p_combs:
-        if (b-a)%2 == 0:
+        if (b-a) % 2 == 0:
             model.addConstr(
                 p[t,a,b] >= z[t,a] + z[t,b] - gp.quicksum(z[t,k] for k in range(a+1,b)) - 1,
                 name = f"enforce_p_{t}_{a}_{b}"
@@ -319,7 +417,7 @@ def batching_model(
                     )
         if t > 1:
             model.addConstr(
-                dist[t] >= dist[t-1],
+                dist[t] <= dist[t-1],
                 name = f"batch_symmetry_breaking_batch_{t}"
             )
 
@@ -371,5 +469,9 @@ def batching_model(
             if z[t,a].X > 0.5
         ] for t in T
     }
+
+    for var in model.getVars():
+        if var.X != 0:
+            print(var.VarName,var.X)
 
     return model.Status, model.Runtime, model.MIPGap, distance, batches_dict, batch_aisles
