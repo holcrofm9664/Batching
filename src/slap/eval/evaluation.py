@@ -5,12 +5,17 @@ def calculate_distance_one_batch(
     aisle_assignments: dict[int, list[int]],
     batch: dict[Any, list[int]],
     warehouse_data: WarehouseData
-) -> float:
+) -> tuple[float, set[int]]:
     """
     Calculate the minimum picking distance for one batch.
 
     Uses dynamic programming over occupied aisle subsets,
     avoiding enumeration of all product-to-aisle assignments.
+
+    Returns:
+        tuple[float, set[int]]:
+            - Minimum picking distance.
+            - Set of aisles visited in the minimum-distance solution.
     """
 
     # Identify the distinct products in the batch
@@ -21,7 +26,7 @@ def calculate_distance_one_batch(
     }
 
     if not products:
-        return 0.0
+        return 0.0, set()
 
     # Preserve the original aisle ordering
     aisles = list(aisle_assignments)
@@ -76,6 +81,7 @@ def calculate_distance_one_batch(
     L = (warehouse_data.num_bays + 1) * N
 
     min_dist = float("inf")
+    best_visited = set()
 
     # Evaluate each distinct occupied-aisle set
     for mask in reachable:
@@ -112,9 +118,12 @@ def calculate_distance_one_batch(
             + 2 * max(M, H)
         )
 
-        min_dist = min(min_dist, distance)
+        # Update minimum distance and corresponding aisles
+        if distance < min_dist:
+            min_dist = distance
+            best_visited = list(set(visited))
 
-    return min_dist
+    return min_dist, best_visited
     
 
 def calculate_distance_all_batches(
@@ -134,13 +143,15 @@ def calculate_distance_all_batches(
     """
     
     dist_by_batch = {}
+    aisles_by_batch = {}
 
     for i, batch in batches.items():
-        distance = calculate_distance_one_batch(aisle_assignments=aisle_assignments,
+        distance, aisles_visited = calculate_distance_one_batch(aisle_assignments=aisle_assignments,
                                                batch=batch,
                                                warehouse_data=warehouse_data)
         dist_by_batch[i] = distance
+        aisles_by_batch[i] = aisles_visited
 
     total_distance = sum(dist_by_batch.values())
 
-    return total_distance, dist_by_batch
+    return total_distance, dist_by_batch, aisles_by_batch
