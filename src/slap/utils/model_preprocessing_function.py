@@ -1,5 +1,5 @@
 import pandas as pd
-from slap.utils.model_preprocessing_helpers import (
+from slap.utils.helpers import (
     clean_dataframes, 
     sample_products, 
     weights_and_volumes, 
@@ -25,7 +25,7 @@ def preprocessing_function_batching(
     buffer:float=0.25
 ) -> tuple[list[list[int]], dict[int,list[int]], int, dict[int,float], dict[int,float], int, int, int, int, float, int, int, int]:
 
-    # clean pick data and solution allocation dataframes
+    # clean pick data and assignments dataframes
     pick_data, assignments = clean_dataframes(
         pick_data=pick_data,
         assignments=assignments
