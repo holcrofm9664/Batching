@@ -372,6 +372,8 @@ def create_orders(
 
         orders.append(order)
 
+    orders = {i:order for i,order in enumerate(orders)}
+   
     return orders, product_demands_dict
 
 
