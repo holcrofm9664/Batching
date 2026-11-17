@@ -4,21 +4,27 @@ import pandas as pd
 import numpy as np
 from itertools import product
 from slap.utils.model_preprocessing_function import preprocessing_function_batching
-from slap.utils.dataclasses import CageData, OrdersData, WarehouseData
 from slap.eval.evaluation import calculate_distance_all_batches
 from slap.models.batching_model_revised import batching_model
+from slap.utils.dataclasses import (
+    CageData, 
+    OrdersData, 
+    WarehouseData
+)
 
 # create a trivial instance to test first
 
-orders_trivial = [[1]]
+orders_trivial = {1:[1]}
 aisle_assignments_trivial = {0:[1],
                              1:[]}
 max_batches_trivial = 1
 weights_dict_trivial = {1:0.1}
 volumes_dict_trivial = {1:0.1}
+
 warehouse_data_trivial = WarehouseData(
     num_aisles=2,
     num_bays=2)
+
 cage_data_trivial = CageData()
 cages_per_batch_trivial=5
 
@@ -34,7 +40,7 @@ instance_trivial = {
 }
 
 pick_data = pd.read_csv("tests/pick_data.csv")
-solution_allocation = pd.read_csv("tests/solution_allocation.csv")
+assignments = pd.read_csv("tests/solution_allocation.csv")
 
 random.seed(123)
 np.random.seed(123)
@@ -81,7 +87,7 @@ for (
 
     instance = preprocessing_function_batching(
         pick_data=pick_data,
-        solution_allocation=solution_allocation,
+        assignments=assignments,
         num_products=num_products,
         orders_data=orders_data,
         warehouse_data=warehouse_data,
@@ -100,8 +106,9 @@ def test_model_outputs(
     instance
 ):
 
-    distance, trips_dict = batching_model(
-        **instance
+    status, runtime, opt_gap, distance, batches_dict, batch_aisles = batching_model(
+        **instance,
+        time_limit=3600
     )
 
     # check trivial instance
@@ -116,17 +123,18 @@ def test_model_outputs(
     "cages_per_batch":cages_per_batch_trivial
     }:
 
-        assert len(trips_dict) == 1
+        assert len(batches_dict) == 1
         assert distance == 8
 
     # ----- check output types ----------------------------------------------------------------
     assert type(distance) == float or distance == None
-    assert type(trips_dict) == dict or trips_dict == None
+    assert type(batches_dict) == dict or batches_dict == None
 
-    if type(trips_dict) == dict:
+    print(f"instance: {instance}")
+    if type(batches_dict) == dict:
 
         # test that each trip is a dictionary
-        for trip in trips_dict.values():
+        for trip in batches_dict.values():
             assert type(trip) == dict
 
 
@@ -138,22 +146,22 @@ def test_model_outputs(
 
     # ----- check distances -------------------------------------------------------------------
     
-    distance_eval, dist_by_trip = calculate_distance_all_batches(
-        batches = trips_dict,
+    distance_eval, dist_by_batch, aisles_by_batch = calculate_distance_all_batches(
+        batches = batches_dict,
         aisle_assignments=instance["aisle_assignments"],
         warehouse_data=instance["warehouse_data"]
     )
     
     assert distance == distance_eval
 
-    print(f"dist_by_trip: {dist_by_trip}")
+    print(f"dist_by_batch: {dist_by_batch}")
     # ----- check cage weight and volume capacities -------------------------------------------
     
     weights_dict, volumes_dict = instance["weights_dict"], instance["volumes_dict"]
     cage_weight_capacity = instance["cage_data"].cage_weight_capacity
     cage_volume_capacity = instance["cage_data"].cage_volume_capacity
 
-    for trip in trips_dict.values():
+    for trip in batches_dict.values():
         for cage in trip:
             # check cage weight capacity not exceeded
             assert sum(
@@ -169,19 +177,21 @@ def test_model_outputs(
     
     orders = instance["orders"]
 
+    print(orders)
+
     prods_orders = sorted(
         [
             p
-            for o in orders 
+            for o in orders.values() 
             for p in o
         ]
     )
 
     prods_trips = sorted(
         [
-            p for trip in trips_dict
-            for cage in trips_dict[trip]
-            for p in trips_dict[trip][cage]
+            p for trip in batches_dict
+            for cage in batches_dict[trip]
+            for p in batches_dict[trip][cage]
         ]
     )
 
