@@ -44,13 +44,20 @@ def heuristic_preprocessing(
         assignments=assignments
     )
 
+    aisle_assignments = (
+        assignments.groupby("aisle")["tpnd"]
+        .apply(list)
+        .to_dict()
+    )
+        
     instance = {
         "orders":orders,
         "weights_dict":weights_dict,
         "volumes_dict":volumes_dict,
         "cage_data":cage_data,
         "prod_assignments":prod_assignments,
-        "cages_per_batch":cages_per_batch
+        "cages_per_batch":cages_per_batch,
+        "aisle_assignments":aisle_assignments
     }
 
     return instance
