@@ -353,7 +353,7 @@ def plot_num_units_runtime(
 
     # Formatting
     ax.set_xlabel("Total ordered units", fontsize=12)
-    ax.set_ylabel("Distance reduction (%)", fontsize=12)
+    ax.set_ylabel("Runtime (s)", fontsize=12)
 
     ax.tick_params(axis="both", labelsize=10)
 
@@ -394,8 +394,8 @@ def plot_num_unique_products_runtime(
     )
 
     # Formatting
-    ax.set_xlabel("Total ordered units", fontsize=12)
-    ax.set_ylabel("Distance reduction (%)", fontsize=12)
+    ax.set_xlabel("Unique Products", fontsize=12)
+    ax.set_ylabel("Runtime (s)", fontsize=12)
 
     ax.tick_params(axis="both", labelsize=10)
 
