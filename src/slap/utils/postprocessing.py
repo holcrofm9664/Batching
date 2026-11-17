@@ -147,5 +147,34 @@ def postprocessing(
         lambda x:np.log(x)
     )
 
+    df = df[
+        [
+            "num_orders",
+            "units_per_order",
+            "total_ordered_units",
+            "unique_prods_per_order",
+            "total_unique_prods",
+            "repetition",
+            "m_status",
+            "m_optgap",
+            "m_runtime",
+            "m_logruntime",
+            "m_distance",
+            "m_aisles",
+            "m_dreduction",
+            "m_numbatches",
+            "ms_status",
+            "ms_optgap",
+            "ms_runtime",
+            "ms_logruntime",
+            "ms_distance",
+            "ms_aisles",
+            "ms_dreduction",
+            "ms_numbatches",
+            "h_distance",
+            "h_aisles",
+            "h_numbatches"
+        ]]
+    
     df.to_csv("/home/holcrofm/holcrofm/Batching/data/tesco_data/processed_df.csv")
     return df
