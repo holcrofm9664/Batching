@@ -343,36 +343,76 @@ def batching_heuristic(
         }
 
     # --------------------------------------------------
-    # 9. Calculate aisles visited
+    # 9. Calculate picking distances for the original batches
     # --------------------------------------------------
 
-    aisles_visited = {
-        batch_id: list({
+    _, batch_distances, _ = calculate_distance_all_batches(
+        batches=batches,
+        aisle_assignments=aisle_assignments,
+        warehouse_data=warehouse_data
+    )
+
+    # Sort batches in decreasing order of picking distance.
+    # Keep their original batch IDs.
+    batches_sorted = sorted(
+        batches.items(),
+        key=lambda item: batch_distances[item[0]],
+        reverse=True
+    )
+
+    batches_sorted = {
+        new_id: batch
+        for new_id, (_, batch) in enumerate(batches_sorted, start=1)
+    }
+
+    # --------------------------------------------------
+    # 10. Sort and renumber cages, keeping contents aligned
+    # --------------------------------------------------
+
+    batches_cage_sorted = {}
+    batch_contents = {}
+    aisles_visited = {}
+
+    for batch_id, batch in batches_sorted.items():
+        # Retain original cage IDs until the contents have been copied.
+        sorted_cages = sorted(
+            batch.items(),
+            key=lambda item: cage_weights[item[0]],
+            reverse=True
+        )
+
+        batches_cage_sorted[batch_id] = {}
+        batch_contents[batch_id] = {}
+
+        for new_cage_id, (old_cage_id, products) in enumerate(
+            sorted_cages, start=1
+        ):
+            batches_cage_sorted[batch_id][new_cage_id] = products
+            batch_contents[batch_id][new_cage_id] = dict(
+                Counter(cage_contents[old_cage_id])
+            )
+
+        # Aisles are properties of batches, not cage indices.
+        aisles_visited[batch_id] = list({
             prod_assignments[prod][0]
-            for cage in batch.values()
-            for prod in cage
+            for products in batch.values()
+            for prod in products
         })
-        for batch_id, batch in batches.items()
-    }
 
-    # --------------------------------------------------
-    # 10. Create batch contents (NEW)
-    # --------------------------------------------------
-
-    batch_contents = {
-        batch_id: {
-            cage_id: dict(Counter(cage_contents[cage_id]))
-            for cage_id in batch
-        }
-        for batch_id, batch in batches.items()
-    }
+    # Check the renumbering has preserved every product-order occurrence.
+    reordered_occurrences = Counter()
+    for batch in batch_contents.values():
+        for cage in batch.values():
+            reordered_occurrences.update(cage)
+    assert reordered_occurrences == original_occurrences, (
+        "Renumbered cage contents do not match original orders."
+    )
 
     # --------------------------------------------------
     # 11. Final summary
     # --------------------------------------------------
 
     elapsed = time.perf_counter() - start_time
-
     debug(
         f"HEURISTIC COMPLETE: "
         f"{num_prods} occurrences, "
@@ -380,31 +420,5 @@ def batching_heuristic(
         f"{num_batches} batches, "
         f"{elapsed:.4f} seconds."
     )
-
-    # sort the batches by their distance
-    
-    _, batch_distances, _ = calculate_distance_all_batches(
-        batches=batches,
-        aisle_assignments=aisle_assignments,
-        warehouse_data=warehouse_data
-    )
-
-    batches_sorted = sorted(batches.items(), key=lambda x:batch_distances[x[0]], reverse=True)
-
-    # sort the cages by their weight
-    batches_cage_sorted = {}
-
-    for b, batch in batches_sorted:
-        cage_weights = {}
-        for c, cage in batch.items():
-            cage_weights[c] = sum(
-                [weights_dict[prod] for prod in cage]
-            )
-
-        batches_cage_sorted[b] = sorted(
-            batch.items(),
-            key = lambda x:cage_weights[x[0]],
-            reverse = True
-        )
 
     return batches_cage_sorted, aisles_visited, batch_contents
