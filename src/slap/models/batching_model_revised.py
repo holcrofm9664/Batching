@@ -39,7 +39,6 @@ def batching_model(
     Returns:
         The solve status, time and gap, and final batches and corresponding total distance.
     """
-    print(f"max_batches:{max_batches}")
 
     W, V = weights_dict, volumes_dict
 
@@ -204,40 +203,34 @@ def batching_model(
         for t in batch_contents.keys():
             if not any(batch_contents[t].values()):
                 E[t].Start = 1
-                print(f"E[{t}].Start: {E[t].Start}")
 
         for t, distance in dist_by_batch.items():
             dist[t].Start = distance
-            print(f"dist[{t}].Start: {dist[t].Start}")
 
         for t, aisles in batch_aisles.items():
             for a in aisles:
                 z[t,a].Start = 1
-                print(f"z[{t},{a}].Start: {z[t,a].Start}")
+
             if len(aisles) > 0:
                 first_aisle = min(aisles)
                 f[t,first_aisle].Start = 1
                 if first_aisle % 2 == 1:
                     F[t].Start = 1
-                    print(f"F[{t}].Start: {F[t].Start}")
             
                 last_aisle = max(aisles)
                 q[t,last_aisle].Start = 1
                 q_idx[t].Start = last_aisle
-                print(f"q_idx[{t}].Start: {q_idx[t].Start}")
 
                 if last_aisle % 2 == 0:
                     Q[t].Start = 1
 
             elif len(aisles) == 0:
                 Q[t].Start = 1
-            print(f"Q[{t}].Start: {Q[t].Start}")
 
             if len(aisles) <= 1:
                 w[t].Start = 1
                 if 0 in aisles:
                     Pen[t].Start = 1
-            print(f"Pen[{t}].Start: {Pen[t].Start}")
             
             for pair in zip(aisles,aisles[1:]):
                 if (pair[1]-pair[0]) % 2 == 0:
@@ -259,7 +252,6 @@ def batching_model(
         for t in remaining_batches:
             E[t].Start = 1
             w[t].Start = 1
-            Q[t].Start = 1
 
     # the constraints
     for o in O:
